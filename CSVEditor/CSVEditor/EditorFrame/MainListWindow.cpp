@@ -1449,7 +1449,15 @@ void MainListWindow::addColumn(const Vector<int>& cols, Vector<Vector<GridData*>
 	{
 		FOR_J(mGrid->GetNumberCols())
 		{
-			mGrid->SetCellBackgroundColour(i, j, i == EditorDefine::ROW_COLUMN_FILTER ? *wxLIGHT_GREY : *wxYELLOW);
+			if (i < 2 && j > 0)
+			{
+				mGrid->SetCellBackgroundColour(i, j, *wxLIGHT_GREY);
+				mGrid->SetReadOnly(i, j, true);
+			}
+			else
+			{
+				mGrid->SetCellBackgroundColour(i, j, i == EditorDefine::ROW_COLUMN_FILTER ? *wxLIGHT_GREY : *wxYELLOW);
+			}
 		}
 	}
 
@@ -2015,7 +2023,8 @@ int MainListWindow::getFirstSelectRow()
 	{
 		return r;
 	}
-	return -1;
+	const int row = mGrid->GetGridCursorRow();
+	return row >= 0 ? row : -1;
 }
 
 int MainListWindow::getFirstSelectCol()
@@ -2030,5 +2039,6 @@ int MainListWindow::getFirstSelectCol()
 	{
 		return col;
 	}
-	return -1;
+	const int col = mGrid->GetGridCursorCol();
+	return col >= 0 ? col : -1;
 }
