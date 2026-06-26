@@ -63,7 +63,7 @@ void CodeExcel::generate()
 	{
 		if (info.mHeader.mTableName == "Global")
 		{
-			generateCppGlobalConfig(info, cppGameTablePath);
+			generateCppGlobalConfig(info, cppGameDataPath);
 		}
 		else if (info.mHeader.mTableName == "Buff")
 		{
@@ -119,7 +119,7 @@ void CodeExcel::generate()
 		{
 			if (info.mHeader.mTableName == "Global")
 			{
-				generateCSharpGlobalConfig(info, csExcelTablePath);
+				generateCSharpGlobalConfig(info, csExcelDataPath);
 			}
 			else if (info.mHeader.mTableName == "Buff")
 			{
@@ -417,7 +417,7 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 	line(source, "// auto generate start");
 	line(source, "#include \"" + dataClassName + ".h\"");
 	line(source, "");
-	if (info.mHeader.mColumnDataList.size() > 3)
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
 	{
 		for (const auto& item : variableList)
 		{
@@ -732,27 +732,15 @@ string CodeExcel::paramNameToFunctionName(const string& paramName)
 	return functionName;
 }
 
-// 生成ExcelGlobal对应的C++代码
-void CodeExcel::generateCppGlobalConfig(const CSVInfo& globalConfig, const string& tableFilePath)
+// 生成EDGlobal对应的C++代码
+void CodeExcel::generateCppGlobalConfig(const CSVInfo& globalConfig, const string& dataFilePath)
 {
-	// ExcelGlobal.h
+	// EDGlobal.h,找到第一个public:,在后面插入配置参数字段
 	string dataClassName = "ED" + globalConfig.mHeader.mTableName;
 	string tableClassName = "Excel" + globalConfig.mHeader.mTableName;
-	string tableFileName = tableFilePath + tableClassName + ".h";
-	string tableString;
-	line(tableString, "// auto generate start");
-	line(tableString, "#pragma once");
-	line(tableString, "");
-	line(tableString, "#include \"" + dataClassName + ".h\"");
-	line(tableString, "#include \"ExcelTable.h\"");
-	line(tableString, "");
-	line(tableString, "class " + tableClassName + " : public ExcelTable<" + dataClassName + ">");
-	line(tableString, "{");
-	line(tableString, "\tBASE(" + tableClassName + ", ExcelTable<" + dataClassName + ">);");
-	line(tableString, "public:");
-	line(tableString, "\tvoid init(const string& tableName) override;");
-	line(tableString, "\tvoid checkAllDataDefault() override;");
-	line(tableString, "public:");
+	string headerFileName = dataFilePath + dataClassName + ".h";
+
+	myVector<string> headerInsertLines;
 	int paramTypeIndex = -1;
 	int paramNameIndex = -1;
 	int paramValueIndex = -1;
@@ -792,32 +780,52 @@ void CodeExcel::generateCppGlobalConfig(const CSVInfo& globalConfig, const strin
 				floatStr += ".0";
 			}
 			string temp = "\tstatic constexpr " + paramType + " " + paramName + " = " + floatStr + "f;";
-			appendWithAlign(temp, "// " + paramDesc, 76);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 64);
+			headerInsertLines.push_back(temp);
 		}
 		else if (paramType == "int" || paramType == "llong")
 		{
 			string temp = "\tstatic constexpr " + paramType + " " + paramName + " = " + paramValue + ";";
-			appendWithAlign(temp, "// " + paramDesc, 76);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 64);
+			headerInsertLines.push_back(temp);
 		}
 		else
 		{
 			string temp = "\tstatic " + paramType + " " + paramName + ";";
-			appendWithAlign(temp, "// " + paramDesc, 76);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 64);
+			headerInsertLines.push_back(temp);
 		}
 	}
-	line(tableString, "};");
-	line(tableString, "// auto generate end", false);
-	writeFile(tableFileName, tableString);
+	headerInsertLines.push_back("");
 
-	// ExcelGlobal.cpp
-	string cppFileName = tableFilePath + tableClassName + ".cpp";
-	myVector<string> codeList;
-	codeList.push_back("// auto generate start");
-	codeList.push_back("#include \"GameHeader.h\"");
-	codeList.push_back("");
+	int headerLineStart = 0;
+	myVector<string> codeListHeader = openFile(headerFileName);
+	FOR_VECTOR(codeListHeader)
+	{
+		if (startWith(codeListHeader[i], "public:"))
+		{
+			headerLineStart = i + 1;
+			break;
+		}
+	}
+	FOR_VECTOR(headerInsertLines)
+	{
+		codeListHeader.insert(headerLineStart++, headerInsertLines[i]);
+	}
+	FOR_VECTOR(codeListHeader)
+	{
+		if (findSubstr(codeListHeader[i], "static void postLoadAll(ExcelTableBase* tableBase)"))
+		{
+			codeListHeader[i] = "\tstatic void postLoadAll(ExcelTableBase* tableBase);";
+			break;
+		}
+	}
+	writeFile(headerFileName, codeListToString(codeListHeader));
+
+	// EDGlobal.cpp
+	string cppFileName = dataFilePath + dataClassName + ".cpp";
+	myVector<string> cppInsertLine;
+	cppInsertLine.push_back("");
 	FOR_VECTOR(globalConfig.mDataList)
 	{
 		const auto& row = globalConfig.mDataList[i];
@@ -827,19 +835,18 @@ void CodeExcel::generateCppGlobalConfig(const CSVInfo& globalConfig, const strin
 		const string& paramDesc = row[paramDescIndex];
 		if (paramType != "float" && paramType != "int" && paramType != "llong")
 		{
-			codeList.push_back(paramType + " ExcelGlobal::" + paramName + ";");
+			cppInsertLine.push_back(paramType + " " + dataClassName + "::" + paramName + ";");
 		}
 	}
-	codeList.push_back("");
-	codeList.push_back("void ExcelGlobal::init(const string& tableName)");
-	codeList.push_back("{");
-	codeList.push_back("\tbase::init(tableName);");
-	codeList.push_back("\tMap<string, string> paramMap;");
-	codeList.push_back("\tfor (const auto& item : getAllData())");
-	codeList.push_back("\t{");
-	codeList.push_back("\t\tremoveAll(item.second->mParamValue, ' ');");
-	codeList.push_back("\t\tparamMap.add(item.second->mParamName, item.second->mParamValue);");
-	codeList.push_back("\t}");
+	cppInsertLine.push_back("");
+	cppInsertLine.push_back("void " + dataClassName + "::postLoadAll(ExcelTableBase* tableBase)");
+	cppInsertLine.push_back("{");
+	cppInsertLine.push_back("\tMap<string, string> paramMap;");
+	cppInsertLine.push_back("\tfor (const auto& item : m" + tableClassName + "->getAllData())");
+	cppInsertLine.push_back("\t{");
+	cppInsertLine.push_back("\t\tremoveAll(item.second->mParamValue, ' ');");
+	cppInsertLine.push_back("\t\tparamMap.add(item.second->mParamName, item.second->mParamValue);");
+	cppInsertLine.push_back("\t}");
 	FOR_VECTOR(globalConfig.mDataList)
 	{
 		const auto& row = globalConfig.mDataList[i];
@@ -849,38 +856,51 @@ void CodeExcel::generateCppGlobalConfig(const CSVInfo& globalConfig, const strin
 		const string& paramDesc = row[paramDescIndex];
 		if (paramType == "Vector2Int")
 		{
-			codeList.push_back("\t" + paramName + " = SToV2I(paramMap[STR(" + paramName + ")]);");
+			cppInsertLine.push_back("\t" + paramName + " = SToV2I(paramMap[STR(" + paramName + ")]);");
 		}
 		else if (paramType == "Vector2")
 		{
-			codeList.push_back("\t" + paramName + " = SToV2(paramMap[STR(" + paramName + ")]);");
+			cppInsertLine.push_back("\t" + paramName + " = SToV2(paramMap[STR(" + paramName + ")]);");
 		}
 		else if (paramType == "Vector3")
 		{
-			codeList.push_back("\t" + paramName + " = SToV3(paramMap[STR(" + paramName + ")]);");
+			cppInsertLine.push_back("\t" + paramName + " = SToV3(paramMap[STR(" + paramName + ")]);");
 		}
 		else if (paramType == "Vector3Int")
 		{
-			codeList.push_back("\t" + paramName + " = SToV3I(paramMap[STR(" + paramName + ")]);");
+			cppInsertLine.push_back("\t" + paramName + " = SToV3I(paramMap[STR(" + paramName + ")]);");
 		}
 		else if (paramType == "Vector<int>")
 		{
-			codeList.push_back("\tSToIs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+			cppInsertLine.push_back("\tSToIs(paramMap[STR(" + paramName + ")], " + paramName + ");");
 		}
 		else if (paramType == "Vector<float>")
 		{
-			codeList.push_back("\tSToFs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+			cppInsertLine.push_back("\tSToFs(paramMap[STR(" + paramName + ")], " + paramName + ");");
 		}
 		else if (paramType == "Vector<llong>")
 		{
-			codeList.push_back("\tSToLLs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+			cppInsertLine.push_back("\tSToLLs(paramMap[STR(" + paramName + ")], " + paramName + ");");
 		}
 	}
-	codeList.push_back("}");
-	codeList.push_back("");
-	codeList.push_back("void ExcelGlobal::checkAllDataDefault() {}");
-	codeList.push_back("// auto generate end", false);
-	writeFile(cppFileName, codeList);
+	cppInsertLine.push_back("}");
+
+	myVector<string> codeListSource = openFile(cppFileName);
+	int cppLineStart = 0;
+	FOR_VECTOR_INVERSE(codeListSource)
+	{
+		if (startWith(codeListSource[i], "#include"))
+		{
+			cppLineStart = i + 1;
+			break;
+		}
+	}
+	FOR_VECTOR(cppInsertLine)
+	{
+		codeListSource.insert(cppLineStart++, cppInsertLine[i]);
+	}
+
+	writeFile(cppFileName, codeListToString(codeListSource));
 }
 
 // 根据BuffDetail表格生成对应的C++代码,包括类定义和类注册
@@ -1574,22 +1594,14 @@ void CodeExcel::generateCSharpExcelDeclare(const myVector<CSVInfo>& info, const 
 	writeFile(fileHotFixPath + "GameBaseExcelILR.cs", hotFixfile);
 }
 
-// 生成ExcelGlobal对应的cs代码
-void CodeExcel::generateCSharpGlobalConfig(const CSVInfo& globalConfig, const string& tableFilePath)
+// 生成EDGlobal对应的cs代码
+void CodeExcel::generateCSharpGlobalConfig(const CSVInfo& globalConfig, const string& dataFilePath)
 {
-	// ExcelGlobal.cs
+	// EDGlobal.cs
 	string dataClassName = "ED" + globalConfig.mHeader.mTableName;
 	string tableClassName = "Excel" + globalConfig.mHeader.mTableName;
-	string tableFileName = tableFilePath + tableClassName + ".cs";
-	string tableString;
-	line(tableString, "// auto generate start");
-	line(tableString, "using UnityEngine;");
-	line(tableString, "using System.Collections.Generic;");
-	line(tableString, "using static StringUtility;");
-	line(tableString, "");
-	line(tableString, "public class " + tableClassName + " : ExcelTableT<" + dataClassName + ">");
-	line(tableString, "{");
-
+	string dataFileName = dataFilePath + dataClassName + ".cs";
+	myVector<string> insertLines0;
 	int paramTypeIndex = -1;
 	int paramNameIndex = -1;
 	int paramValueIndex = -1;
@@ -1629,35 +1641,38 @@ void CodeExcel::generateCSharpGlobalConfig(const CSVInfo& globalConfig, const st
 				floatStr += ".0";
 			}
 			string temp = "\tpublic const " + paramType + " " + paramName + " = " + floatStr + "f;";
-			appendWithAlign(temp, "// " + paramDesc, 68);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 52);
+			insertLines0.push_back(temp);
 		}
 		else if (paramType == "int")
 		{
 			string temp = "\tpublic const " + paramType + " " + paramName + " = " + paramValue + ";";
-			appendWithAlign(temp, "// " + paramDesc, 68);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 52);
+			insertLines0.push_back(temp);
 		}
 		else if (paramType == "llong")
 		{
 			string temp = "\tpublic const " + cppTypeToCSharpType(paramType) + " " + paramName + " = " + paramValue + ";";
-			appendWithAlign(temp, "// " + paramDesc, 68);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 52);
+			insertLines0.push_back(temp);
 		}
 		else
 		{
 			string temp = "\tpublic static " + cppTypeToCSharpType(paramType) + " " + paramName + ";";
-			appendWithAlign(temp, "// " + paramDesc, 68);
-			line(tableString, temp);
+			appendWithAlign(temp, "// " + paramDesc, 52);
+			insertLines0.push_back(temp);
 		}
 	}
-	line(tableString, "\tprotected override void onOpenFile()");
-	line(tableString, "\t{");
-	line(tableString, "\t\tusing var a = new DicScope<string, string>(out var paramMap);");
-	line(tableString, "\t\tforeach (EDGlobal data in queryAll())");
-	line(tableString, "\t\t{");
-	line(tableString, "\t\t\tparamMap.add(data.mParamName, data.mParamValue.removeAllEmpty());");
-	line(tableString, "\t\t}");
+	insertLines0.push_back("");
+
+	myVector<string> insertLines1;
+	insertLines1.push_back("\tpublic static void postLoadAll(ExcelTableT<EDGlobal> table)");
+	insertLines1.push_back("\t{");
+	insertLines1.push_back("\t\tusing var a = new DicScope<string, string>(out var paramMap);");
+	insertLines1.push_back("\t\tforeach (EDGlobal data in table.queryAll())");
+	insertLines1.push_back("\t\t{");
+	insertLines1.push_back("\t\t\tparamMap.add(data.mParamName, data.mParamValue.removeAllEmpty());");
+	insertLines1.push_back("\t\t}");
 	FOR_VECTOR(globalConfig.mDataList)
 	{
 		const auto& row = globalConfig.mDataList[i];
@@ -1667,37 +1682,73 @@ void CodeExcel::generateCSharpGlobalConfig(const CSVInfo& globalConfig, const st
 		const string& paramDesc = row[paramDescIndex];
 		if (paramType == "Vector2Int")
 		{
-			line(tableString, "\t\t" + paramName + " = SToV2I(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToV2I(paramMap[\"" + paramName + "\"]);");
 		}
 		else if (paramType == "Vector2")
 		{
-			line(tableString, "\t\t" + paramName + " = SToV2(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToV2(paramMap[\"" + paramName + "\"]);");
 		}
 		else if (paramType == "Vector3")
 		{
-			line(tableString, "\t\t" + paramName + " = SToV3(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToV3(paramMap[\"" + paramName + "\"]);");
 		}
 		else if (paramType == "Vector3Int")
 		{
-			line(tableString, "\t\t" + paramName + " = SToV3I(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToV3I(paramMap[\"" + paramName + "\"]);");
 		}
 		else if (paramType == "Vector<int>")
 		{
-			line(tableString, "\t\t" + paramName + " = SToIs(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToIs(paramMap[\"" + paramName + "\"]);");
 		}
 		else if (paramType == "Vector<float>")
 		{
-			line(tableString, "\t\t" + paramName + " = SToFs(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToFs(paramMap[\"" + paramName + "\"]);");
 		}
 		else if (paramType == "Vector<llong>")
 		{
-			line(tableString, "\t\t" + paramName + " = SToLLs(paramMap[\"" + paramName + "\"]);");
+			insertLines1.push_back("\t\t" + paramName + " = SToLs(paramMap[\"" + paramName + "\"]);");
 		}
 	}
-	line(tableString, "\t}");
-	line(tableString, "}");
-	line(tableString, "// auto generate end", false);
-	writeFile(tableFileName, tableString);
+	insertLines1.push_back("\t}");
+
+	myVector<string> codeList = openFile(dataFileName);
+	int lineStart0 = 0;
+	FOR_VECTOR(codeList)
+	{
+		if (codeList[i] == "{")
+		{
+			lineStart0 = i + 1;
+			break;
+		}
+	}
+	FOR_VECTOR(insertLines0)
+	{
+		codeList.insert(lineStart0++, insertLines0[i]);
+	}
+	int lineStart1 = 0;
+	FOR_VECTOR(codeList)
+	{
+		if (findSubstr(codeList[i], "public static void postLoadAll("))
+		{
+			codeList.eraseAt(i);
+			lineStart1 = i;
+			break;
+		}
+	}
+	FOR_VECTOR(insertLines1)
+	{
+		codeList.insert(lineStart1++, insertLines1[i]);
+	}
+	FOR_VECTOR_INVERSE(codeList)
+	{
+		if (startWith(codeList[i], "using "))
+		{
+			codeList.insert(++i, "using static StringUtility;");
+			break;
+		}
+	}
+
+	writeFile(dataFileName, codeListToString(codeList));
 }
 
 void CodeExcel::generateCSharpBuff(const CSVInfo& config)

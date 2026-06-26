@@ -19,7 +19,7 @@ void CodeClassDeclareAndHeader::generateCppFrameClassAndHeader(const string& pat
 	{
 		if (findSubstr(headerFiles[i], "Dependency/"))
 		{
-			headerFiles.erase(i);
+			headerFiles.eraseAt(i);
 		}
 	}
 	for (const string& fileName : headerFiles)

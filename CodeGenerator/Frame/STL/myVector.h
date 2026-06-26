@@ -55,7 +55,7 @@ public:
 #endif
 		return mVector.erase(iter);
 	}
-	iterator erase(uint index, bool check = true)
+	iterator eraseAt(uint index, bool check = true)
 	{
 #if _DEBUG
 		if (index < 0 || index >= (int)mVector.size())

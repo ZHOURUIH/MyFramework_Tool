@@ -544,7 +544,7 @@ bool CodeUtility::findCustomCode(const string& fullPath, myVector<string>& codeL
 	int removeLineCount = endCode - lineStart - 1;
 	for (int i = 0; i < removeLineCount; ++i)
 	{
-		codeList.erase(lineStart + 1);
+		codeList.eraseAt(lineStart + 1);
 	}
 	return true;
 }

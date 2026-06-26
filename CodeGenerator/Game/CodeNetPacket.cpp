@@ -219,7 +219,7 @@ void CodeNetPacket::generateCpp(const myVector<PacketStruct>& structInfoList, co
 		if (!gamePacketNameList.contains(getFileNameNoSuffix(cppGameCSFiles[i], true)))
 		{
 			deleteFile(cppGameCSFiles[i]);
-			cppGameCSFiles.erase(i--);
+			cppGameCSFiles.eraseAt(i--);
 		}
 	}
 	// c++ SC
@@ -230,7 +230,7 @@ void CodeNetPacket::generateCpp(const myVector<PacketStruct>& structInfoList, co
 		if (!gamePacketNameList.contains(getFileNameNoSuffix(cppGameSCFiles[i], true)))
 		{
 			deleteFile(cppGameSCFiles[i]);
-			cppGameSCFiles.erase(i--);
+			cppGameSCFiles.eraseAt(i--);
 		}
 	}
 	// 消息结构体代码
@@ -241,7 +241,7 @@ void CodeNetPacket::generateCpp(const myVector<PacketStruct>& structInfoList, co
 		if (!structNameList.contains(getFileNameNoSuffix(cppNetStructFiles[i], true)))
 		{
 			deleteFile(cppNetStructFiles[i]);
-			cppNetStructFiles.erase(i--);
+			cppNetStructFiles.eraseAt(i--);
 		}
 	}
 
