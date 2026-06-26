@@ -287,7 +287,7 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 		{
 			memberLine = "\t" + type + " m" + name + ";";
 		}
-		appendWithAlign(memberLine, "// " + member->mComment, 60);
+		appendWithAlign(memberLine, "// " + member->mComment, 64);
 		line(header, memberLine);
 	}
 	line(header, "public:");
@@ -336,21 +336,23 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 					const string& paramValue = row[colNameList["Param" + indexSuffix]];
 					const string& paramType = row[colNameList["ParamType" + indexSuffix]];
 					const string& paramName = row[colNameList["ParamName" + indexSuffix]];
+					const string& paramComment = row[colNameList["ParamComment" + indexSuffix]];
 					if (paramValue.empty())
 					{
 						break;
 					}
+					string lineContent;
 					if (paramType == "Vector<int>")
 					{
 						myVector<int> values;
 						SToIs(paramValue, values);
-						line(header, "\tstatic constexpr Array<" + IToS(values.size()) + ", int> m" + paramName + " { " + IsToS(values.data(), values.size(), 0, ", ") + " };");
+						lineContent = "\tstatic constexpr Array<" + IToS(values.size()) + ", int> m" + paramName + " { " + IsToS(values.data(), values.size(), 0, ", ") + " };";
 					}
 					else if (paramType == "Vector<llong>")
 					{
 						myVector<llong> values;
 						SToLLs(paramValue, values);
-						line(header, "\tstatic constexpr Array<" + IToS(values.size()) + ", llong> m" + paramName + " { " + LLsToS(values.data(), values.size(), 0, ", ") + " };");
+						lineContent = "\tstatic constexpr Array<" + IToS(values.size()) + ", llong> m" + paramName + " { " + LLsToS(values.data(), values.size(), 0, ", ") + " };";
 					}
 					else if (paramType == "Vector<float>")
 					{
@@ -374,11 +376,11 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 								valueStr += ", ";
 							}
 						}
-						line(header, "\tstatic constexpr Array<" + IToS(values.size()) + ", float> m" + paramName + " { " + valueStr + " };");
+						lineContent = "\tstatic constexpr Array<" + IToS(values.size()) + ", float> m" + paramName + " { " + valueStr + " };";
 					}
 					else if (paramType == "int" || paramType == "llong")
 					{
-						line(header, "\tstatic constexpr " + paramType + " m" + paramName + " = " + paramValue + ";");
+						lineContent = "\tstatic constexpr " + paramType + " m" + paramName + " = " + paramValue + ";";
 					}
 					else if (paramType == "float")
 					{
@@ -391,11 +393,16 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 						{
 							str += "f";
 						}
-						line(header, "\tstatic constexpr " + paramType + " m" + paramName + " = " + str + ";");
+						lineContent = "\tstatic constexpr " + paramType + " m" + paramName + " = " + str + ";";
 					}
 					else
 					{
 						ERROR("不支持的参数类型:" + paramType + ", 表格:" + info.mHeader.mTableName + ", id:" + row[0]);
+					}
+					if (!lineContent.empty())
+					{
+						appendWithAlign(lineContent, "// " + paramComment, 64);
+						line(header, lineContent);
 					}
 				}
 				line(header, "};");
@@ -864,6 +871,10 @@ void CodeExcel::generateCppGlobalConfig(const CSVInfo& globalConfig, const strin
 		{
 			codeList.push_back("\tSToFs(paramMap[STR(" + paramName + ")], " + paramName + ");");
 		}
+		else if (paramType == "Vector<llong>")
+		{
+			codeList.push_back("\tSToLLs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+		}
 	}
 	codeList.push_back("}");
 	codeList.push_back("");
@@ -1246,22 +1257,24 @@ void CodeExcel::generateCSharpExcelDataFile(const CSVInfo& info, const string& d
 					const string& paramValue = row[colNameList["Param" + indexSuffix]];
 					const string& paramType = row[colNameList["ParamType" + indexSuffix]];
 					const string& paramName = row[colNameList["ParamName" + indexSuffix]];
+					const string& paramComment = row[colNameList["ParamComment" + indexSuffix]];
 					if (paramValue.empty())
 					{
 						break;
 					}
 					string csharpType = cppTypeToCSharpType(paramType);
+					string lineContent;
 					if (paramType == "Vector<int>")
 					{
 						myVector<int> values;
 						SToIs(paramValue, values);
-						line(file, "\tpublic static " + csharpType + " m" + paramName + " = new() { " + IsToS(values.data(), values.size(), 0, ", ") + " };");
+						lineContent = "\tpublic static " + csharpType + " m" + paramName + " = new() { " + IsToS(values.data(), values.size(), 0, ", ") + " };";
 					}
 					else if (paramType == "Vector<llong>")
 					{
 						myVector<llong> values;
 						SToLLs(paramValue, values);
-						line(file, "\tpublic static " + csharpType + " m" + paramName + " = new() { " + LLsToS(values.data(), values.size(), 0, ", ") + " };");
+						lineContent = "\tpublic static " + csharpType + " m" + paramName + " = new() { " + LLsToS(values.data(), values.size(), 0, ", ") + " };";
 					}
 					else if (paramType == "Vector<float>")
 					{
@@ -1285,11 +1298,11 @@ void CodeExcel::generateCSharpExcelDataFile(const CSVInfo& info, const string& d
 								valueStr += ", ";
 							}
 						}
-						line(file, "\tpublic static " + csharpType + " m" + paramName + " = new() { " + valueStr + " };");
+						lineContent = "\tpublic static " + csharpType + " m" + paramName + " = new() { " + valueStr + " };";
 					}
 					else if (paramType == "int" || paramType == "llong")
 					{
-						line(file, "\tpublic static " + csharpType + " m" + paramName + " = " + paramValue + ";");
+						lineContent = "\tpublic static " + csharpType + " m" + paramName + " = " + paramValue + ";";
 					}
 					else if (paramType == "float")
 					{
@@ -1302,11 +1315,16 @@ void CodeExcel::generateCSharpExcelDataFile(const CSVInfo& info, const string& d
 						{
 							str += "f";
 						}
-						line(file, "\tpublic static " + csharpType + " m" + paramName + " = " + str + ";");
+						lineContent = "\tpublic static " + csharpType + " m" + paramName + " = " + str + ";";
 					}
 					else
 					{
 						ERROR("不支持的参数类型:" + paramType + ", 表格:" + info.mHeader.mTableName + ", id:" + row[0]);
+					}
+					if (!lineContent.empty())
+					{
+						appendWithAlign(lineContent, "// " + paramComment, 52);
+						line(file, lineContent);
 					}
 				}
 				line(file, "}");
@@ -1670,6 +1688,10 @@ void CodeExcel::generateCSharpGlobalConfig(const CSVInfo& globalConfig, const st
 		else if (paramType == "Vector<float>")
 		{
 			line(tableString, "\t\t" + paramName + " = SToFs(paramMap[\"" + paramName + "\"]);");
+		}
+		else if (paramType == "Vector<llong>")
+		{
+			line(tableString, "\t\t" + paramName + " = SToLLs(paramMap[\"" + paramName + "\"]);");
 		}
 	}
 	line(tableString, "\t}");
