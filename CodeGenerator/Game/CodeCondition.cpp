@@ -65,7 +65,7 @@ void CodeCondition::generateCppConditionRegister(const myVector<string>& conditi
 	line(source, "{");
 	FOR_VECTOR(conditionList)
 	{
-		line(source, "\tmConditionFactoryManager->addFactory<Condition" + conditionList[i] + ">(EDCondition::" + conditionList[i] + ");");
+		line(source, "\tmConditionFactoryManager->addFactory<Condition" + conditionList[i] + ">(EDCondition::" + conditionList[i] + "_ID);");
 	}
 	line(source, "}");
 	line(source, "// auto generate end", false);
@@ -84,7 +84,7 @@ void CodeCondition::generateCSharpConditionRegister(const myVector<string>& cond
 	line(content, "\t{");
 	FOR_VECTOR(conditionList)
 	{
-		line(content, "\t\tregiste<Condition" + conditionList[i] + ", Condition" + conditionList[i] + "Param>(EDCondition." + conditionList[i] + ");");
+		line(content, "\t\tregiste<Condition" + conditionList[i] + ", Condition" + conditionList[i] + "Param>(EDCondition." + conditionList[i] + "_ID);");
 	}
 	line(content, "\t}");
 	line(content, "\t//------------------------------------------------------------------------------------------------------------------------------");

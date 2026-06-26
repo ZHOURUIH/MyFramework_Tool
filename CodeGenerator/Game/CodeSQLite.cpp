@@ -230,11 +230,30 @@ void CodeSQLite::generateCppSQLiteDataFile(const SQLiteInfo& sqliteInfo, const s
 	}
 	if (variableList.size() > 0)
 	{
-		for (const auto& item : variableList)
+		if (sqliteInfo.mMemberList.size() > 3)
 		{
-			string str = "\tstatic constexpr int " + item.second.first + " = " + IToS(item.first) + ";";
-			appendWithAlign(str, "// " + item.second.second, 64);
-			line(header, str);
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic constexpr int " + item.second.first + "_ID = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+			line(header, "");
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic " + dataClassName + "* " + item.second.first + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+		}
+		else
+		{
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic constexpr int " + item.second.first + " = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
 		}
 		line(header, "");
 	}
@@ -283,6 +302,14 @@ void CodeSQLite::generateCppSQLiteDataFile(const SQLiteInfo& sqliteInfo, const s
 	line(header, "public:");
 	line(header, "\tvoid cloneTo(ExcelData* target) override;");
 	line(header, "\tvoid read(SerializerRead* reader) override;");
+	if (variableList.size() > 0 && sqliteInfo.mMemberList.size() > 3)
+	{
+		line(header, "\tstatic void postLoadAll(ExcelTableBase* tableBase);");
+	}
+	else
+	{
+		line(header, "\tstatic void postLoadAll(ExcelTableBase* tableBase){}");
+	}
 	line(header, "};");
 	line(header, "// auto generate end", false);
 	writeFile(dataFilePath + dataClassName + ".h", header);
@@ -292,6 +319,14 @@ void CodeSQLite::generateCppSQLiteDataFile(const SQLiteInfo& sqliteInfo, const s
 	line(source, "// auto generate start");
 	line(source, "#include \"" + dataClassName + ".h\"");
 	line(source, "");
+	if (sqliteInfo.mMemberList.size() > 3)
+	{
+		for (const auto& item : variableList)
+		{
+			line(source, dataClassName + "* " + dataClassName + "::" + item.second.first + " = nullptr;");
+		}
+		line(source, "");
+	}
 	line(source, "void " + dataClassName + "::cloneTo(ExcelData* target)");
 	line(source, "{");
 	line(source, "\tbase::cloneTo(target);");
@@ -376,6 +411,17 @@ void CodeSQLite::generateCppSQLiteDataFile(const SQLiteInfo& sqliteInfo, const s
 		}
 	}
 	line(source, "}");
+	if (variableList.size() > 0 && sqliteInfo.mMemberList.size() > 3)
+	{
+		line(source, "void " + dataClassName + "::postLoadAll(ExcelTableBase* tableBase)");
+		line(source, "{");
+		line(source, "\tauto* table = static_cast<ExcelTable<" + dataClassName + ">*>(tableBase);");
+		for (const auto& item : variableList)
+		{
+			line(source, "\t" + item.second.first + " = " + "table->getData(" + item.second.first + "_ID);");
+		}
+		line(source, "}");
+	}
 	line(source, "// auto generate end", false);
 	writeFile(dataFilePath + dataClassName + ".cpp", source);
 }

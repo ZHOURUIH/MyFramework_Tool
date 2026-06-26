@@ -221,11 +221,30 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 	}
 	if (variableList.size() > 0)
 	{
-		for (const auto& item : variableList)
+		if (info.mHeader.mColumnDataList.size() > 3)
 		{
-			string str = "\tstatic constexpr int " + item.second.first + " = " + IToS(item.first) + ";";
-			appendWithAlign(str, "// " + item.second.second, 64);
-			line(header, str);
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic constexpr int " + item.second.first + "_ID = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+			line(header, "");
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic " + dataClassName + "* " + item.second.first + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+		}
+		else
+		{
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic constexpr int " + item.second.first + " = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
 		}
 		line(header, "");
 	}
@@ -274,6 +293,14 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 	line(header, "public:");
 	line(header, "\tvoid cloneTo(ExcelData* target) override;");
 	line(header, "\tvoid read(SerializerRead* reader) override;");
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
+	{
+		line(header, "\tstatic void postLoadAll(ExcelTableBase* tableBase);");
+	}
+	else
+	{
+		line(header, "\tstatic void postLoadAll(ExcelTableBase* tableBase){}");
+	}
 	line(header, "};");
 
 	// 要生成参数的代码,必须要有对应ID的常量名
@@ -383,6 +410,14 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 	line(source, "// auto generate start");
 	line(source, "#include \"" + dataClassName + ".h\"");
 	line(source, "");
+	if (info.mHeader.mColumnDataList.size() > 3)
+	{
+		for (const auto& item : variableList)
+		{
+			line(source, dataClassName + "* " + dataClassName + "::" + item.second.first + " = nullptr;");
+		}
+		line(source, "");
+	}
 	line(source, "void " + dataClassName + "::cloneTo(ExcelData* target)");
 	line(source, "{");
 	line(source, "\tbase::cloneTo(target);");
@@ -467,6 +502,18 @@ void CodeExcel::generateCppExcelDataFile(const CSVInfo& info, const string& data
 		}
 	}
 	line(source, "}");
+
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
+	{
+		line(source, "void " + dataClassName + "::postLoadAll(ExcelTableBase* tableBase)");
+		line(source, "{");
+		line(source, "\tauto* table = static_cast<ExcelTable<" + dataClassName + ">*>(tableBase);");
+		for (const auto& item : variableList)
+		{
+			line(source, "\t" + item.second.first + " = " + "table->getData(" + item.second.first + "_ID);");
+		}
+		line(source, "}");
+	}
 	line(source, "// auto generate end", false);
 	writeFile(dataFilePath + dataClassName + ".cpp", source);
 }
@@ -1030,14 +1077,33 @@ void CodeExcel::generateCSharpExcelDataFile(const CSVInfo& info, const string& d
 	line(file, "// " + info.mHeader.mComment);
 	line(file, "public class " + dataClassName + " : ExcelData");
 	line(file, "{");
-	// 表示ID的静态变量
+	// 表示ID的静态变量,如果只有3列,也就是除了ID,变量名和注释以外就没了,那生成对象也没意义,只需要生成ID就行了
 	if (variableList.size() > 0)
 	{
-		for (const auto& item : variableList)
+		if (info.mHeader.mColumnDataList.size() > 3)
 		{
-			string str = "\tpublic static int " + item.second.first + " = " + IToS(item.first) + ";";
-			appendWithAlign(str, "// " + item.second.second, 52);
-			line(file, str);
+			for (const auto& item : variableList)
+			{
+				string str = "\tpublic static int " + item.second.first + "_ID = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 52);
+				line(file, str);
+			}
+			line(file, "");
+			for (const auto& item : variableList)
+			{
+				string str = "\tpublic static " + dataClassName + " " + item.second.first + ";";
+				appendWithAlign(str, "// " + item.second.second, 52);
+				line(file, str);
+			}
+		}
+		else
+		{
+			for (const auto& item : variableList)
+			{
+				string str = "\tpublic static int " + item.second.first + " = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 52);
+				line(file, str);
+			}
 		}
 		line(file, "");
 	}
@@ -1130,6 +1196,22 @@ void CodeExcel::generateCSharpExcelDataFile(const CSVInfo& info, const string& d
 		line(file, "\t\treturn result;");
 	}
 	line(file, "\t}");
+
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
+	{
+		line(file, "\tpublic static void postLoadAll(ExcelTableT<ED" + info.mHeader.mTableName + "> table)");
+		line(file, "\t{");
+		for (const auto& item : variableList)
+		{
+			line(file, "\t\t" + item.second.first + " = table.query(" + item.second.first + "_ID);");
+		}
+		line(file, "\t}");
+	}
+	else
+	{
+		line(file, "\tpublic static void postLoadAll(ExcelTableT<ED" + info.mHeader.mTableName + "> table){}");
+	}
+
 	line(file, "}");
 
 	// 要生成参数的代码,必须要有对应ID的常量名
@@ -1367,6 +1449,11 @@ void CodeExcel::generateCSharpExcelTableFile(const CSVInfo& info, const string& 
 		insertLines.clear();
 		insertLines.push_back("\tprotected override void checkAllDataDefault() {}");
 	}
+
+	insertLines.push_back("\tprotected override void postParseFile()");
+	insertLines.push_back("\t{");
+	insertLines.push_back("\t\t" + dataClassName + ".postLoadAll(this);");
+	insertLines.push_back("\t}");
 
 	// ExcelTable.cs文件
 	string csFileName = tableFilePath + tableClassName + ".cs";
@@ -1625,7 +1712,7 @@ void CodeExcel::generateCSharpBuff(const CSVInfo& config)
 
 	for (const string& name : buffClassNameList)
 	{
-		codeList.insert(++lineStart, "\t\tregisteState<" + name + ", " + name + "Param>(EDBuff." + name + ");");
+		codeList.insert(++lineStart, "\t\tregisteState<" + name + ", " + name + "Param>(EDBuff." + name + "_ID);");
 	}
 	writeFile(registerFilePath, codeList);
 }
