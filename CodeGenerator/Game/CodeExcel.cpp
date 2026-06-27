@@ -1598,7 +1598,7 @@ void CodeExcel::generateCSharpExcelDeclare(const myVector<CSVInfo>& info, const 
 	}
 	line(hotFixfile, "}");
 	line(hotFixfile, "// auto generate end", false);
-	writeFile(fileHotFixPath + "GameBaseExcelILR.cs", hotFixfile);
+	writeFile(fileHotFixPath + "GameBaseExcelHotFix.cs", hotFixfile);
 }
 
 // 生成EDGlobal对应的cs代码
