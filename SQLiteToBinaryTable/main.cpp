@@ -494,9 +494,9 @@ bool sqliteToBinary(const string& file, const SQLiteInfo& sqliteTableInfo, const
 	return true;
 }
 
-string dataBasePath;
-string clientDestSQLitePath;
-string serverDestPath;
+string dataBasePath = "none";
+string clientDestSQLitePath = "none";
+string serverDestPath = "none";
 bool parseConfig(const string& path)
 { 
 	Vector<string> lines;
@@ -509,7 +509,7 @@ bool parseConfig(const string& path)
 	for (const string& line : lines)
 	{
 		Vector<string> params;
-		StringUtility::split(line, "=", params);
+		StringUtility::split(line, "=", params, false);
 		if (params.size() != 2)
 		{
 			continue;
@@ -529,17 +529,17 @@ bool parseConfig(const string& path)
 			serverDestPath = paramValue;
 		}
 	}
-	if (dataBasePath.empty())
+	if (dataBasePath == "none")
 	{
 		ERROR("参数解析错误,找不到DataBasePath");
 		return 0;
 	}
-	if (clientDestSQLitePath.empty())
+	if (clientDestSQLitePath == "none")
 	{
 		ERROR("参数解析错误,找不到ClientDestSQLitePath");
 		return 0;
 	}
-	if (serverDestPath.empty())
+	if (serverDestPath == "none")
 	{
 		ERROR("参数解析错误,找不到ServerDestPath");
 		return 0;
@@ -554,6 +554,10 @@ int main()
 
 	// 不能删除之前生成的文件,因为所有的csv和db文件生成的bytes是在一起的,所以不能删除,只能覆盖
 
+	if (dataBasePath.empty())
+	{
+		return 0;
+	}
 	// 解析表头
 	Map<string, SQLiteInfo> sqliteInfoList;
 	parseSQLiteDescription(dataBasePath, sqliteInfoList);
@@ -571,12 +575,18 @@ int main()
 		// 转换给客户端,这种情况下客户端只会使用表格原始文件,只需要拷贝并加密即可
 		if (sqliteTableInfo.mOwner == SQLITE_OWNER::CLIENT_ONLY || sqliteTableInfo.mOwner == SQLITE_OWNER::BOTH)
 		{
-			copySQLiteToClient(file, clientDestSQLitePath);
+			if (clientDestSQLitePath != "none" && !clientDestSQLitePath.empty())
+			{
+				copySQLiteToClient(file, clientDestSQLitePath);
+			}
 		}
 		// 转换给服务器
 		if (sqliteTableInfo.mOwner == SQLITE_OWNER::SERVER_ONLY || sqliteTableInfo.mOwner == SQLITE_OWNER::BOTH)
 		{
-			sqliteToBinary(file, sqliteTableInfo, serverDestPath, false);
+			if (serverDestPath != "none" && !serverDestPath.empty())
+			{
+				sqliteToBinary(file, sqliteTableInfo, serverDestPath, false);
+			}
 		}
 	}
 	return 0;

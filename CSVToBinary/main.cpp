@@ -467,9 +467,9 @@ void csvToBinary(const string& destPath, const CSVHeader& header, const Vector<V
 	cout << "生成文件:" << destPath << endl;
 }
 
-string csvPath;
-string clientDestPath;
-string serverDestPath;
+string csvPath = "none";
+string clientDestPath = "none";
+string serverDestPath = "none";
 bool parseConfig(const string& filePath)
 {
 	Vector<string> lines;
@@ -482,7 +482,7 @@ bool parseConfig(const string& filePath)
 	for (const string& line : lines)
 	{
 		Vector<string> params;
-		StringUtility::split(line, "=", params);
+		StringUtility::split(line, "=", params, false);
 		if (params.size() != 2)
 		{
 			continue;
@@ -502,17 +502,17 @@ bool parseConfig(const string& filePath)
 			serverDestPath = paramValue;
 		}
 	}
-	if (csvPath.empty())
+	if (csvPath == "none")
 	{
 		ERROR("参数解析错误,找不到CSVPath");
 		return false;
 	}
-	if (clientDestPath.empty())
+	if (clientDestPath == "none")
 	{
 		ERROR("参数解析错误,找不到ClientDestPath");
 		return false;
 	}
-	if (serverDestPath.empty())
+	if (serverDestPath == "none")
 	{
 		ERROR("参数解析错误,找不到ServerDestPath");
 		return false;
@@ -528,17 +528,26 @@ int main()
 	}
 	// 删除之前生成的文件
 	Vector<string> tempBytesFiles;
-	FileUtility::findFiles(serverDestPath, tempBytesFiles, ".bytes");
-	for (const string& file : tempBytesFiles)
+	if (serverDestPath != "none" && !serverDestPath.empty())
 	{
-		FileUtility::deleteFile(file);
+		FileUtility::findFiles(serverDestPath, tempBytesFiles, ".bytes");
+		for (const string& file : tempBytesFiles)
+		{
+			FileUtility::deleteFile(file);
+		}
 	}
-	FileUtility::findFiles(clientDestPath, tempBytesFiles, ".bytes");
-	for (const string& file : tempBytesFiles)
+	if (clientDestPath != "none" && !clientDestPath.empty())
 	{
-		FileUtility::deleteFile(file);
+		FileUtility::findFiles(clientDestPath, tempBytesFiles, ".bytes");
+		for (const string& file : tempBytesFiles)
+		{
+			FileUtility::deleteFile(file);
+		}
 	}
-
+	if (csvPath == "none")
+	{
+		return 0;
+	}
 	Vector<string> files;
 	FileUtility::findFiles(csvPath, files, ".csv");
 	for(const string& file : files)
@@ -549,11 +558,17 @@ int main()
 		const string fileName = StringUtility::getFileNameNoSuffix(file, true);
 		if (header.mOwner == OWNER::BOTH || header.mOwner == OWNER::CLIENT_ONLY)
 		{
-			csvToBinary(clientDestPath + "/" + fileName + ".bytes", header, dataList, true);
+			if (clientDestPath != "none" && !clientDestPath.empty())
+			{
+				csvToBinary(clientDestPath + "/" + fileName + ".bytes", header, dataList, true);
+			}
 		}
 		if (header.mOwner == OWNER::BOTH || header.mOwner == OWNER::SERVER_ONLY)
 		{
-			csvToBinary(serverDestPath + "/" + fileName + ".bytes", header, dataList, false);
+			if (serverDestPath != "none" && !serverDestPath.empty())
+			{
+				csvToBinary(serverDestPath + "/" + fileName + ".bytes", header, dataList, false);
+			}
 		}
 	}
 	return 0;
