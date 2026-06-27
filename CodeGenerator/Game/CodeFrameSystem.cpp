@@ -2,6 +2,10 @@
 
 void CodeFrameSystem::generate()
 {
+	if (cppGamePath.empty() || cppFramePath.empty())
+	{
+		return;
+	}
 	print("正在生成框架组件");
 	generateFrameSystem(cppGamePath, "Common/GameBase.h", "Game/Game.cpp", "GameBase", "");
 	generateFrameSystem(cppFramePath, "Common/FrameBase.h", "ServerFramework/ServerFramework.cpp", "FrameBase", "MICRO_LEGEND_FRAME_API ");

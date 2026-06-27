@@ -164,11 +164,6 @@ bool CodeUtility::initPath()
 		}
 	}
 
-	if (ServerGameProjectPath.empty() && ClientProjectPath.empty() && VirtualClientProjectPath.empty())
-	{
-		return false;
-	}
-
 	rightToLeft(ServerGameProjectPath);
 	rightToLeft(ServerFrameProjectPath);
 	rightToLeft(SQLitePath);

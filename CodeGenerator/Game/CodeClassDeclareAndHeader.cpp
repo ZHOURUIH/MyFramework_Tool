@@ -2,6 +2,10 @@
 
 void CodeClassDeclareAndHeader::generate()
 {
+	if (ServerFrameProjectPath.empty() || cppGamePath.empty())
+	{
+		return;
+	}
 	print("正在生成类声明");
 	generateCppFrameClassAndHeader(ServerFrameProjectPath, cppFramePath + "Common/");
 	generateCppGameClassAndHeader(cppGamePath, cppGamePath + "Common/");

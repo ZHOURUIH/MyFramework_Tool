@@ -4,7 +4,7 @@ void CodeCondition::generate()
 {
 	print("正在生成组件代码");
 	// Game
-	const string registerCppPath = cppGamePath + "/ConditionManager/";
+	const string registerCppPath = !cppGamePath.empty() ? cppGamePath + "/ConditionManager/" : "";
 	const string registerCSPath = ClientHotFixPath + "/ConditionManager/";
 
 	// 先读取表格描述
@@ -32,7 +32,10 @@ void CodeCondition::generate()
 	{
 		conditionList.push_back(csvInfo.mDataList[i][nameColumn]);
 	}
-	generateCppConditionRegister(conditionList, registerCppPath);
+	if (!registerCppPath.empty())
+	{
+		generateCppConditionRegister(conditionList, registerCppPath);
+	}
 	generateCSharpConditionRegister(conditionList, registerCSPath);
 	print("完成生成组件代码");
 	print("");

@@ -7,6 +7,10 @@ myVector<string> CodeSQLite::mSQLiteForServerTableList;
 
 void CodeSQLite::generate()
 {
+	if (SQLitePath.empty())
+	{
+		return;
+	}
 	print("正在生成SQLite");
 
 	// 先读取表格描述
@@ -111,26 +115,29 @@ void CodeSQLite::generate()
 	}
 	
 	// cpp
-	string cppGameDataPath = cppGamePath + "DataBase/Excel/Data/";
-	string cppGameTablePath = cppGamePath + "DataBase/Excel/Table/";
-	myVector<SQLiteInfo> serverGameSQLiteList;
-	mSQLiteForServerTableList.clear();
-	for (const SQLiteInfo& info : sqliteInfoList)
+	if (!cppGamePath.empty())
 	{
-		if ((info.mOwner == OWNER::BOTH || info.mOwner == OWNER::SERVER_ONLY))
+		string cppGameDataPath = cppGamePath + "DataBase/Excel/Data/";
+		string cppGameTablePath = cppGamePath + "DataBase/Excel/Table/";
+		myVector<SQLiteInfo> serverGameSQLiteList;
+		mSQLiteForServerTableList.clear();
+		for (const SQLiteInfo& info : sqliteInfoList)
 		{
-			serverGameSQLiteList.push_back(info);
-			mSQLiteForServerTableList.push_back(info.mSQLiteName);
+			if ((info.mOwner == OWNER::BOTH || info.mOwner == OWNER::SERVER_ONLY))
+			{
+				serverGameSQLiteList.push_back(info);
+				mSQLiteForServerTableList.push_back(info.mSQLiteName);
+			}
 		}
-	}
-	// 删除C++的代码文件,只删ExcelData中的,因为里面都是自动生成的,ExcelTable中的包含手动写的代码,而且是Excel和SQLite混在一起,就不删除了
-	deleteFolder(cppGameDataPath);
+		// 删除C++的代码文件,只删ExcelData中的,因为里面都是自动生成的,ExcelTable中的包含手动写的代码,而且是Excel和SQLite混在一起,就不删除了
+		deleteFolder(cppGameDataPath);
 
-	// 生成代码文件
-	for (const SQLiteInfo& info : serverGameSQLiteList)
-	{
-		generateCppSQLiteDataFile(info, cppGameDataPath);
-		generateCppSQLiteTableFile(info, cppGameTablePath);
+		// 生成代码文件
+		for (const SQLiteInfo& info : serverGameSQLiteList)
+		{
+			generateCppSQLiteDataFile(info, cppGameDataPath);
+			generateCppSQLiteTableFile(info, cppGameTablePath);
+		}
 	}
 
 	//------------------------------------------------------------------------------------------------------------------------------
@@ -703,6 +710,7 @@ void CodeSQLite::generateCSharpSQLiteTableFile(const SQLiteInfo& sqliteInfo, con
 void CodeSQLite::generateCSharpSQLiteRegisteFileFile(const myVector<SQLiteInfo>& sqliteInfo, const string& fileHotFixPath)
 {
 	string hotFixfile;
+	line(hotFixfile, "#if USE_SQLITE");
 	line(hotFixfile, "// auto generate start");
 	line(hotFixfile, "using System;");
 	line(hotFixfile, "using static GBR;");
@@ -731,6 +739,7 @@ void CodeSQLite::generateCSharpSQLiteRegisteFileFile(const myVector<SQLiteInfo>&
 	line(hotFixfile, "\t\ttable = mSQLiteManager.registeTable(typeof(T), dataType, tableName) as T;");
 	line(hotFixfile, "\t}");
 	line(hotFixfile, "}");
-	line(hotFixfile, "// auto generate end", false);
+	line(hotFixfile, "// auto generate end");
+	line(hotFixfile, "#endif", false);
 	writeFile(fileHotFixPath + "SQLiteRegister.cs", hotFixfile);
 }

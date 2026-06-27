@@ -3,6 +3,10 @@
 
 void CodeExcel::generate()
 {
+	if (ExcelPath.empty())
+	{
+		return;
+	}
 	print("正在生成Excel");
 
 	// 先读取表格描述
@@ -16,58 +20,61 @@ void CodeExcel::generate()
 	}
 	
 	// cpp
-	string cppGameDataPath = cppGamePath + "DataBase/Excel/Data/";
-	string cppGameTablePath = cppGamePath + "DataBase/Excel/Table/";
-	myVector<string> serverTableNameList;
-	myVector<CSVInfo> serverInfoList;
-	for (const CSVInfo& info : infoList)
+	if (!cppGamePath.empty())
 	{
-		if ((info.mHeader.mOwner == OWNER::BOTH || info.mHeader.mOwner == OWNER::SERVER_ONLY))
+		string cppGameDataPath = cppGamePath + "DataBase/Excel/Data/";
+		string cppGameTablePath = cppGamePath + "DataBase/Excel/Table/";
+		myVector<string> serverTableNameList;
+		myVector<CSVInfo> serverInfoList;
+		for (const CSVInfo& info : infoList)
 		{
-			serverTableNameList.push_back(info.mHeader.mTableName);
-			serverInfoList.push_back(info);
+			if ((info.mHeader.mOwner == OWNER::BOTH || info.mHeader.mOwner == OWNER::SERVER_ONLY))
+			{
+				serverTableNameList.push_back(info.mHeader.mTableName);
+				serverInfoList.push_back(info);
+			}
 		}
-	}
-	// 删除C++的代码文件,只删Data的代码,Table的代码由于包含手动写的代码,而且Excel和SQLite混在一起,所以不删除
-	// 删除Data时也需要注意不要把已经从SQLite文件生成好的Table代码删了
-	string patterns[2]{ ".cpp", ".h" };
-	for (const string& str : findFiles(cppGameDataPath, patterns, 2))
-	{
-		if (CodeSQLite::mSQLiteForServerTableList.contains(getFileNameNoSuffix(str, true).substr(strlen("ED"))))
+		// 删除C++的代码文件,只删Data的代码,Table的代码由于包含手动写的代码,而且Excel和SQLite混在一起,所以不删除
+		// 删除Data时也需要注意不要把已经从SQLite文件生成好的Table代码删了
+		string patterns[2]{ ".cpp", ".h" };
+		for (const string& str : findFiles(cppGameDataPath, patterns, 2))
 		{
-			continue;
+			if (CodeSQLite::mSQLiteForServerTableList.contains(getFileNameNoSuffix(str, true).substr(strlen("ED"))))
+			{
+				continue;
+			}
+			deleteFile(str);
 		}
-		deleteFile(str);
-	}
 
-	// 生成代码文件
-	for (const CSVInfo& info : serverInfoList)
-	{
-		generateCppExcelDataFile(info, cppGameDataPath);
-		generateCppExcelTableFile(info, cppGameTablePath);
-	}
-
-	const string gameBaseHeaderPath = cppGamePath + "Common/GameBase.h";
-	const string gameBaseSourcePath = cppGamePath + "Common/GameBase.cpp";
-	const string gameSTLPoolSourcePath = cppGamePath + "Common/GameSTLPoolRegister.cpp";
-	// 服务器中Excel和SQLite的表格名字列表
-	myVector<string> allTableNameList;
-	allTableNameList.addRange(serverTableNameList);
-	allTableNameList.addRange(CodeSQLite::mSQLiteForServerTableList);
-	generateCppExcelRegisteFile(allTableNameList, getFilePath(cppGameDataPath) + "/");
-	generateCppExcelInstanceDeclare(allTableNameList, gameBaseHeaderPath, "");
-	generateCppExcelInstanceDefine(allTableNameList, gameBaseSourcePath);
-	generateCppExcelSTLPoolRegister(allTableNameList, gameSTLPoolSourcePath);
-	generateCppExcelInstanceClear(allTableNameList, gameBaseSourcePath);
-	for (const CSVInfo& info : serverInfoList)
-	{
-		if (info.mHeader.mTableName == "Global")
+		// 生成代码文件
+		for (const CSVInfo& info : serverInfoList)
 		{
-			generateCppGlobalConfig(info, cppGameDataPath);
+			generateCppExcelDataFile(info, cppGameDataPath);
+			generateCppExcelTableFile(info, cppGameTablePath);
 		}
-		else if (info.mHeader.mTableName == "Buff")
+
+		const string gameBaseHeaderPath = cppGamePath + "Common/GameBase.h";
+		const string gameBaseSourcePath = cppGamePath + "Common/GameBase.cpp";
+		const string gameSTLPoolSourcePath = cppGamePath + "Common/GameSTLPoolRegister.cpp";
+		// 服务器中Excel和SQLite的表格名字列表
+		myVector<string> allTableNameList;
+		allTableNameList.addRange(serverTableNameList);
+		allTableNameList.addRange(CodeSQLite::mSQLiteForServerTableList);
+		generateCppExcelRegisteFile(allTableNameList, getFilePath(cppGameDataPath) + "/");
+		generateCppExcelInstanceDeclare(allTableNameList, gameBaseHeaderPath, "");
+		generateCppExcelInstanceDefine(allTableNameList, gameBaseSourcePath);
+		generateCppExcelSTLPoolRegister(allTableNameList, gameSTLPoolSourcePath);
+		generateCppExcelInstanceClear(allTableNameList, gameBaseSourcePath);
+		for (const CSVInfo& info : serverInfoList)
 		{
-			generateCppBuff(info);
+			if (info.mHeader.mTableName == "Global")
+			{
+				generateCppGlobalConfig(info, cppGameDataPath);
+			}
+			else if (info.mHeader.mTableName == "Buff")
+			{
+				generateCppBuff(info);
+			}
 		}
 	}
 

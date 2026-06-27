@@ -2,12 +2,11 @@
 
 void CodeUnityBuild::generate()
 {
-	print("正在生成UnityBuild");
-	if (ServerGameProjectPath.length() == 0)
+	if (ServerGameProjectPath.empty() || cppGamePath.empty() || cppFramePath.empty())
 	{
 		return;
 	}
-
+	print("正在生成UnityBuild");
 	// 生成UnityBuild.cpp文件
 	generateCppUnityBuild(cppGamePath, "UnityBuildGame.cpp");
 	generateCppUnityBuild(cppFramePath, "UnityBuildFrame.cpp");

@@ -2,6 +2,10 @@
 
 void CodeComponent::generate()
 {
+	if (cppGamePath.empty())
+	{
+		return;
+	}
 	print("正在生成组件代码");
 	// Game
 	const string cppGameRegisterPath = cppGamePath + "/Component/";

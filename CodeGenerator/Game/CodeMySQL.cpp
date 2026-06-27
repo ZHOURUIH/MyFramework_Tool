@@ -2,6 +2,10 @@
 
 void CodeMySQL::generate()
 {
+	if (cppGamePath.empty())
+	{
+		return;
+	}
 	print("正在生成MySQL");
 	// 解析模板文件
 	// 整个文件是否已经开始解析
@@ -13,7 +17,6 @@ void CodeMySQL::generate()
 	myVector<string> lines = openFile("MySQL.txt");
 	if (lines.size() == 0)
 	{
-		ERROR("未找到表格格式文件MySQL.txt");
 		return;
 	}
 	myVector<MySQLInfo> mySQLInfoList;

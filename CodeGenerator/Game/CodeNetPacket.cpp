@@ -6,8 +6,15 @@ void CodeNetPacket::generate()
 	myVector<PacketStruct> structInfoList;
 	myVector<PacketInfo> packetInfoList;
 	parsePacketConfig(structInfoList, packetInfoList);
+	if (packetInfoList.size() == 0)
+	{
+		return;
+	}
 
-	generateCpp(structInfoList, packetInfoList);
+	if (!cppGamePath.empty())
+	{
+		generateCpp(structInfoList, packetInfoList);
+	}
 
 	if (!ClientHotFixPath.empty())
 	{
@@ -21,7 +28,7 @@ void CodeNetPacket::generateVirtualClient()
 {
 	if (VirtualClientSocketPath.empty())
 	{
-		ERROR("未配置虚拟客户端项目路径");
+		LOG("未配置虚拟客户端项目路径");
 		return;
 	}
 	print("正在生成虚拟客户端网络消息");
@@ -42,12 +49,12 @@ void CodeNetPacket::parsePacketConfig(myVector<PacketStruct>& structInfoList, my
 	myVector<string> structLines = openFile("PacketStruct.txt");
 	if (csLines.size() == 0)
 	{
-		ERROR("未找到协议文件PacketCS.txt");
+		LOG("没有协议文件PacketCS.txt");
 		return;
 	}
 	if (scLines.size() == 0)
 	{
-		ERROR("未找到协议文件PacketSC.txt");
+		LOG("没有协议文件PacketSC.txt");
 		return;
 	}
 

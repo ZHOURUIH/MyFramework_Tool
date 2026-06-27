@@ -2,6 +2,10 @@
 
 void CodeBaseCheck::generate()
 {
+	if (ServerGameProjectPath.empty())
+	{
+		return;
+	}
 	print("正在进行Base检测");
 	// 只收集指定文件中定义的枚举
 	myVector<string> files;
