@@ -146,6 +146,8 @@ void CodeSQLite::generate()
 	{
 		string csSQLiteDataHotFixPath = ClientHotFixPath + "DataBase/SQLite/Data/";
 		string csSQLiteTableHotFixPath = ClientHotFixPath + "DataBase/SQLite/Table/";
+		string csSQLiteTableDeclareHotFixPath = ClientHotFixPath + "Common/";
+
 		// 筛选出Client的表格
 		myVector<SQLiteInfo> clientSQLiteList;
 		myVector<string> sqliteNameList;
@@ -176,6 +178,7 @@ void CodeSQLite::generate()
 
 		// 在上一层目录生成SQLiteRegister.cs文件
 		generateCSharpSQLiteRegisteFileFile(clientSQLiteList, getFilePath(csSQLiteDataHotFixPath) + "/");
+		generateCSharpSQLiteDeclare(clientSQLiteList, csSQLiteTableDeclareHotFixPath);
 	}
 	print("完成生成SQLite");
 	print("");
@@ -742,4 +745,62 @@ void CodeSQLite::generateCSharpSQLiteRegisteFileFile(const myVector<SQLiteInfo>&
 	line(hotFixfile, "// auto generate end");
 	line(hotFixfile, "#endif", false);
 	writeFile(fileHotFixPath + "SQLiteRegister.cs", hotFixfile);
+}
+
+// GameBaseHotFix.cs文件
+void CodeSQLite::generateCSharpSQLiteDeclare(const myVector<SQLiteInfo>& sqliteInfo, const string& fileHotFixPath)
+{
+	myVector<string> insertLines;
+	for (const SQLiteInfo& info : sqliteInfo)
+	{
+		if (info.mClientSQLite && info.mOwner != OWNER::SERVER_ONLY && info.mOwner != OWNER::NONE)
+		{
+			insertLines.push_back("\tpublic static SQLite" + info.mSQLiteName + " mSQLite" + info.mSQLiteName + ";");
+		}
+	}
+
+	string fileName = fileHotFixPath + "GameBaseHotFix.cs";
+	if (!isFileExist(fileName))
+	{
+		string file;
+		line(file, "using System;");
+		line(file, "");
+		line(file, "public class GBR");
+		line(file, "{");
+		line(file, "// auto generate SQLite start");
+		for (const string& str : insertLines)
+		{
+			line(file, str);
+		}
+		line(file, "// auto generate SQLite end");
+		line(file, "}", false);
+		writeFile(fileName, file);
+	}
+	else
+	{
+		myVector<string> codeList;
+		int lineStart = -1;
+		if (!findCustomCode(fileName, codeList, lineStart,
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate SQLite start"); },
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate SQLite end"); }, false))
+		{
+			// 如果找不到就在第一个{下一行插入
+			FOR_VECTOR(codeList)
+			{
+				if (!codeList[i].empty() && codeList[i][0] == '{')
+				{
+					lineStart = i;
+					codeList.insert(++lineStart, "\t// auto generate SQLite start");
+					codeList.insert(++lineStart, "\t// auto generate SQLite end");
+					break;
+				}
+			}
+			lineStart = lineStart - 1;
+		}
+		for (const string& str : insertLines)
+		{
+			codeList.insert(++lineStart, str);
+		}
+		writeFile(fileName, codeList);
+	}
 }

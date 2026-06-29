@@ -1578,27 +1578,62 @@ void CodeExcel::generateCSharpExcelRegisteFileFile(const myVector<CSVInfo>& info
 	writeFile(fileHotFixPath + "ExcelRegister.cs", hotFixfile);
 }
 
-// GameBaseExcel.cs文件
+// GameBaseHotFix.cs文件
 void CodeExcel::generateCSharpExcelDeclare(const myVector<CSVInfo>& info, const string& fileHotFixPath)
 {
-	// 热更工程中的表格注册
-	string hotFixfile;
-	line(hotFixfile, "// auto generate start");
-	line(hotFixfile, "using System;");
-	line(hotFixfile, "");
-	line(hotFixfile, "// FrameBase的部分类,用于定义Excel表格的对象");
-	line(hotFixfile, "public partial class GBR");
-	line(hotFixfile, "{");
+	myVector<string> insertLines;
 	for (const CSVInfo& info : info)
 	{
 		if (info.mHeader.mOwner != OWNER::SERVER_ONLY && info.mHeader.mOwner != OWNER::NONE)
 		{
-			line(hotFixfile, "\tpublic static Excel" + info.mHeader.mTableName + " mExcel" + info.mHeader.mTableName + ";");
+			insertLines.push_back("\tpublic static Excel" + info.mHeader.mTableName + " mExcel" + info.mHeader.mTableName + ";");
 		}
 	}
-	line(hotFixfile, "}");
-	line(hotFixfile, "// auto generate end", false);
-	writeFile(fileHotFixPath + "GameBaseExcelHotFix.cs", hotFixfile);
+
+	string fileName = fileHotFixPath + "GameBaseHotFix.cs";
+	if (!isFileExist(fileName))
+	{
+		string file;
+		line(file, "using System;");
+		line(file, "");
+		line(file, "public class GBR");
+		line(file, "{");
+		line(file, "// auto generate Excel start");
+		for (const string& str : insertLines)
+		{
+			line(file, str);
+		}
+		line(file, "// auto generate Excel end");
+		line(file, "}", false);
+		writeFile(fileName, file);
+	}
+	else
+	{
+		myVector<string> codeList;
+		int lineStart = -1;
+		if (!findCustomCode(fileName, codeList, lineStart,
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate Excel start"); },
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate Excel end"); }, false))
+		{
+			// 如果找不到就在第一个{下一行插入
+			FOR_VECTOR(codeList)
+			{
+				if (!codeList[i].empty() && codeList[i][0] == '{')
+				{
+					lineStart = i;
+					codeList.insert(++lineStart, "\t// auto generate Excel start");
+					codeList.insert(++lineStart, "\t// auto generate Excel end");
+					break;
+				}
+			}
+			lineStart = lineStart - 1;
+		}
+		for (const string& str : insertLines)
+		{
+			codeList.insert(++lineStart, str);
+		}
+		writeFile(fileName, codeList);
+	}
 }
 
 // 生成EDGlobal对应的cs代码
