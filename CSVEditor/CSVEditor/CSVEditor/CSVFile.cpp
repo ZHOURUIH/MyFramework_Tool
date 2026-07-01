@@ -349,10 +349,47 @@ bool CSVFile::validate()
 		// 检查字段标签
 		if (!colData->mFlag.empty())
 		{
-			if (!mValidFlagList.contains(colData->mFlag))
+			string flagName = colData->mFlag;
+			string flagParam;
+			int pos = -1;
+			if (findString(colData->mFlag, ":", &pos))
+			{
+				flagName = colData->mFlag.substr(0, pos);
+				flagParam = colData->mFlag.substr(pos + 1);
+			}
+			if (!mValidFlagList.contains(flagName))
 			{
 				dialogOK("字段标签错误:" + colData->mFlag + ", 列名:" + colData->mName);
 				return false;
+			}
+			// 检查标签的参数是否填写正确
+			if (flagName == "Path")
+			{
+				if (flagParam != "AllowSpace" && flagParam != "NotAllowSpace")
+				{
+					dialogOK("字段标签的参数错误:" + colData->mFlag + ", 列名:" + colData->mName);
+				}
+			}
+			else if (flagName == "ItemName")
+			{
+				if (getColumnByName(flagParam) < 0)
+				{
+					dialogOK("字段标签的参数错误:" + colData->mFlag + ",找不到参数中的列:" + flagParam + ", 列名:" + colData->mName);
+				}
+			}
+			else if (flagName == "PropertyName")
+			{
+				if (getColumnByName(flagParam) < 0)
+				{
+					dialogOK("字段标签的参数错误:" + colData->mFlag + ",找不到参数中的列:" + flagParam + ", 列名:" + colData->mName);
+				}
+			}
+			else if (flagName == "EquipName")
+			{
+				if (getColumnByName(flagParam) < 0)
+				{
+					dialogOK("字段标签的参数错误:" + colData->mFlag + ",找不到参数中的列:" + flagParam + ", 列名:" + colData->mName);
+				}
 			}
 			// 带标签的字段都是客户端需要使用的,所属不能设置为None或者Server
 			if (colData->mOwner != OWNER::BOTH && colData->mOwner != OWNER::CLIENT)

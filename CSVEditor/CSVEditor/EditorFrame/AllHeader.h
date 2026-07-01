@@ -22,3 +22,4 @@
 #include "UndoAddRow.h"
 #include "UndoSwapRow.h"
 #include "UndoSwapColumn.h"
+#include "FlagDecriptionDialog.h"

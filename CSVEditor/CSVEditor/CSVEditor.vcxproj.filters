@@ -112,6 +112,9 @@
     <ClCompile Include="Undo\UndoSwapColumn.cpp">
       <Filter>Undo</Filter>
     </ClCompile>
+    <ClCompile Include="EditorFrame\FlagDecriptionDialog.cpp">
+      <Filter>EditorFrame</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EditorFrame\EditorApp.h">
@@ -317,6 +320,9 @@
     </ClInclude>
     <ClInclude Include="Undo\UndoSwapColumn.h">
       <Filter>Undo</Filter>
+    </ClInclude>
+    <ClInclude Include="EditorFrame\FlagDecriptionDialog.h">
+      <Filter>EditorFrame</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

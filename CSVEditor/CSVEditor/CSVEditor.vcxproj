@@ -23,6 +23,7 @@
     <ClCompile Include="EditorFrame\EditorBase.cpp" />
     <ClCompile Include="EditorFrame\EditorFrame.cpp" />
     <ClCompile Include="EditorFrame\EditorUtility.cpp" />
+    <ClCompile Include="EditorFrame\FlagDecriptionDialog.cpp" />
     <ClCompile Include="EditorFrame\MainListWindow.cpp" />
     <ClCompile Include="CSVEditor\CSVFile.cpp" />
     <ClCompile Include="EditorFrame\MyMessageBox.cpp" />
@@ -58,6 +59,7 @@
     <ClInclude Include="EditorFrame\EditorDefine.h" />
     <ClInclude Include="EditorFrame\EditorEnum.h" />
     <ClInclude Include="EditorFrame\EditorFrame.h" />
+    <ClInclude Include="EditorFrame\FlagDecriptionDialog.h" />
     <ClInclude Include="EditorFrame\MyMessageBox.h" />
     <ClInclude Include="EditorFrame\wxHeader.h" />
     <ClInclude Include="EditorFrame\EditorUtility.h" />

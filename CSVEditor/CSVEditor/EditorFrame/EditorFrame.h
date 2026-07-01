@@ -21,16 +21,17 @@ public:
 	
 	DECLARE_EVENT_TABLE()
 	void OnTimer(wxTimerEvent& event);
-	void OnExit(wxCommandEvent& event);			// 菜单的退出
-	void OnOpenFile(wxCommandEvent& event);		// 菜单的打开文件
+	void OnExit(wxCommandEvent& event);				// 菜单的退出
+	void OnOpenFile(wxCommandEvent& event);			// 菜单的打开文件
 	void OnNewFile(wxCommandEvent& event);
-	void OnSaveFile(wxCommandEvent& event);		// 菜单的保存文件
+	void OnSaveFile(wxCommandEvent& event);			// 菜单的保存文件
 	void OnConvertTable(wxCommandEvent& event);
 	void OnAutoID(wxCommandEvent& event);
-	void OnCopy(wxCommandEvent& event);			// 菜单的复制
-	void OnPaste(wxCommandEvent& event);		// 菜单的粘贴
-	void OnUndo(wxCommandEvent& event);			// 菜单的撤销
-	void OnRedo(wxCommandEvent& event);			// 菜单的重做
+	void OnCopy(wxCommandEvent& event);				// 菜单的复制
+	void OnPaste(wxCommandEvent& event);			// 菜单的粘贴
+	void OnUndo(wxCommandEvent& event);				// 菜单的撤销
+	void OnRedo(wxCommandEvent& event);				// 菜单的重做
+	void OnFlagDecription(wxCommandEvent& event);	// 菜单的标签说明
 	void OnAddRowToFirst(wxCommandEvent& event);
 	void OnAddRowToEnd(wxCommandEvent& event);
 	void OnFixedItemName(wxCommandEvent& event);

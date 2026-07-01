@@ -11,6 +11,7 @@ enum
 	ID_AUTO_ID,
 	ID_FIXED_ITEM_NAME,
 	ID_ADD_ROW_BUTTON,
+	ID_FLAG_DESCRIPTION,
 };
 
 BEGIN_EVENT_TABLE(EditorFrame, wxFrame)
@@ -24,6 +25,7 @@ EVT_TOOL(ID_CONVERT_TABLE, EditorFrame::OnConvertTable)
 EVT_TOOL(ID_AUTO_ID, EditorFrame::OnAutoID)
 EVT_TOOL(ID_FIXED_ITEM_NAME, EditorFrame::OnFixedItemName)
 EVT_BUTTON(ID_ADD_ROW_BUTTON, EditorFrame::OnAddRowButton)
+EVT_TOOL(ID_FLAG_DESCRIPTION, EditorFrame::OnFlagDecription)
 EVT_CLOSE(OnCloseWindow)
 
 END_EVENT_TABLE()
@@ -136,6 +138,11 @@ void EditorFrame::CreateMenu()
 	editMenu->Append(ID_UNDO, "撤销\tCtrl+Z", "undo");
 	editMenu->Append(ID_REDO, "重做\tCtrl+Y", "redo");
 	menuBar->Append(editMenu, "编辑");
+
+	// 其他菜单
+	wxMenu* otherMenu = new wxMenu;
+	otherMenu->Append(ID_FLAG_DESCRIPTION, "标签说明", "flag description");
+	menuBar->Append(otherMenu, "其他");
 
 	Bind(wxEVT_MENU, &EditorFrame::OnCopy, this, wxID_COPY);
 	Bind(wxEVT_MENU, &EditorFrame::OnPaste, this, wxID_PASTE);
@@ -305,6 +312,12 @@ void EditorFrame::OnRedo(wxCommandEvent& event)
 	mUndoManager->redo();
 }
 
+void EditorFrame::OnFlagDecription(wxCommandEvent& event)
+{
+	FlagDecriptionDialog dialog(this);
+	dialog.ShowModal();
+}
+
 void EditorFrame::OnAddRowToFirst(wxCommandEvent& event)
 {
 	mMainListWindow->addRowToFirst({});
@@ -437,7 +450,7 @@ void EditorFrame::UpdateStatus()
 		}
 		else if (selectRow == EditorDefine::ROW_COLUMN_FLAG)
 		{
-			rowDesc = "填写字段的类型描述,目前支持的标签有Path,ItemName,PropertyName,EquipTypeName";
+			rowDesc = "填写字段的类型描述,目前支持的标签有Path,ItemName,PropertyName,EquipTypeName,具体的点击菜单中的标签说明查看";
 		}
 		else if (selectRow == EditorDefine::ROW_COLUMN_FILTER)
 		{
