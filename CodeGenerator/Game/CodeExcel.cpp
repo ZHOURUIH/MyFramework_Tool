@@ -1430,44 +1430,53 @@ void CodeExcel::generateCSharpExcelTableFile(const CSVInfo& info, const string& 
 			}
 			if (!member->mFlag.empty())
 			{
-				if (member->mFlag == "Path")
+				string flagName = member->mFlag;
+				string flagParam;
+				int pos = -1;
+				if (findString(member->mFlag.c_str(), ":", &pos))
+				{
+					flagName = member->mFlag.substr(0, pos);
+					flagParam = member->mFlag.substr(pos + 1);
+				}
+				if (flagName == "Path")
 				{
 					insertLines.push_back("\t\t\tif (!item.m" + name + ".isEmpty())");
 					insertLines.push_back("\t\t\t{");
-					insertLines.push_back("\t\t\t\tcheckPath(item.m" + name + ");");
+					if (flagParam == "AllowSpace")
+					{
+						insertLines.push_back("\t\t\t\tcheckPath(item.m" + name + ", false);");
+					}
+					else if (flagParam == "NotAllowSpace")
+					{
+						insertLines.push_back("\t\t\t\tcheckPath(item.m" + name + ");");
+					}
 					insertLines.push_back("\t\t\t}");
 				}
-				else if (member->mFlag == "ItemName")
+				else if (flagName == "ItemName")
 				{
-					string idColName = removeEndString(name, "Name");
-					// 如果直接去掉Name后缀以后没有对应的字段名,则再尝试加上ID
-					if (!info.mHeader.mColumnNameList.contains(idColName))
-					{
-						idColName += "ID";
-					}
 					if (startWith(member->mType, "Vector<"))
 					{
 						string tempListVarName = name;
 						tempListVarName[0] = toLower(tempListVarName[0]);
 						insertLines.push_back("\t\t\tusing var a" + name + " = new ListScope<string>(out var " + tempListVarName + ");");
-						insertLines.push_back("\t\t\tfor (int i = 0; i < item.m" + idColName + ".Count; ++i)");
+						insertLines.push_back("\t\t\tfor (int i = 0; i < item.m" + flagParam + ".Count; ++i)");
 						insertLines.push_back("\t\t\t{");
-						insertLines.push_back("\t\t\t\t" + tempListVarName + ".add(mExcelItem.query(item.m" + idColName + "[i])?.mName);");
+						insertLines.push_back("\t\t\t\t" + tempListVarName + ".add(mExcelItem.query(item.m" + flagParam + "[i])?.mName);");
 						insertLines.push_back("\t\t\t}");
 						insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", " + tempListVarName + ", item.mID);");
 					}
 					else
 					{
-						insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", mExcelItem.query(item.m" + idColName + ", false)?.mName, item.mID);");
+						insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", mExcelItem.query(item.m" + flagParam + ", false)?.mName, item.mID);");
 					}
 				}
-				else if (member->mFlag == "PropertyName")
+				else if (flagName == "PropertyName")
 				{
-					insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", GD.PROPERTY_NAME.get(item.m" + removeEndString(name, "Name") + "), item.mID);");
+					insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", GD.PROPERTY_NAME.get(item.m" + flagParam + "), item.mID);");
 				}
-				else if (member->mFlag == "EquipTypeName")
+				else if (flagName == "EquipTypeName")
 				{
-					insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", GD.EQUIP_TYPE_NAME.get(item.m" + removeEndString(name, "Name") + "), item.mID);");
+					insertLines.push_back("\t\t\tcheckStringValue(item.m" + name + ", GD.EQUIP_TYPE_NAME.get(item.m" + flagParam + "), item.mID);");
 				}
 			}
 		}
