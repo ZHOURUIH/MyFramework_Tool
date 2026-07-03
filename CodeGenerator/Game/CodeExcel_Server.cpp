@@ -1,0 +1,962 @@
+#include "CodeExcel_Server.h"
+#include "CodeSQLite.h"
+
+void CodeExcel_Server::generate(const myVector<CSVInfo>& infoList)
+{
+	string cppGameDataPath = cppGamePath + "DataBase/Excel/Data/";
+	string cppGameTablePath = cppGamePath + "DataBase/Excel/Table/";
+	myVector<string> serverTableNameList;
+	myVector<CSVInfo> serverInfoList;
+	for (const CSVInfo& info : infoList)
+	{
+		if ((info.mHeader.mOwner == OWNER::BOTH || info.mHeader.mOwner == OWNER::SERVER_ONLY))
+		{
+			serverTableNameList.push_back(info.mHeader.mTableName);
+			serverInfoList.push_back(info);
+		}
+	}
+	// 删除C++的代码文件,只删Data的代码,Table的代码由于包含手动写的代码,而且Excel和SQLite混在一起,所以不删除
+	// 删除Data时也需要注意不要把已经从SQLite文件生成好的Table代码删了
+	string patterns[2]{ ".cpp", ".h" };
+	for (const string& str : findFiles(cppGameDataPath, patterns, 2))
+	{
+		if (CodeSQLite::mSQLiteForServerTableList.contains(getFileNameNoSuffix(str, true).substr(strlen("ED"))))
+		{
+			continue;
+		}
+		deleteFile(str);
+	}
+
+	// 生成代码文件
+	for (const CSVInfo& info : serverInfoList)
+	{
+		CodeExcel_Server::generateCppExcelDataFile(info, cppGameDataPath);
+		CodeExcel_Server::generateCppExcelTableFile(info, cppGameTablePath);
+	}
+
+	const string gameBaseHeaderPath = cppGamePath + "Common/GameBase.h";
+	const string gameBaseSourcePath = cppGamePath + "Common/GameBase.cpp";
+	const string gameSTLPoolSourcePath = cppGamePath + "Common/GameSTLPoolRegister.cpp";
+	// 服务器中Excel和SQLite的表格名字列表
+	myVector<string> allTableNameList;
+	allTableNameList.addRange(serverTableNameList);
+	allTableNameList.addRange(CodeSQLite::mSQLiteForServerTableList);
+	CodeExcel_Server::generateCppExcelRegisteFile(allTableNameList, getFilePath(cppGameDataPath) + "/");
+	CodeExcel_Server::generateCppExcelInstanceDeclare(allTableNameList, gameBaseHeaderPath, "");
+	CodeExcel_Server::generateCppExcelInstanceDefine(allTableNameList, gameBaseSourcePath);
+	CodeExcel_Server::generateCppExcelSTLPoolRegister(allTableNameList, gameSTLPoolSourcePath);
+	CodeExcel_Server::generateCppExcelInstanceClear(allTableNameList, gameBaseSourcePath);
+	for (const CSVInfo& info : serverInfoList)
+	{
+		if (info.mHeader.mTableName == "Global")
+		{
+			CodeExcel_Server::generateCppGlobalConfig(info, cppGameDataPath);
+		}
+		else if (info.mHeader.mTableName == "Buff")
+		{
+			CodeExcel_Server::generateCppBuff(info);
+		}
+	}
+}
+
+// ExcelData.h和ExcelData.cpp文件
+void CodeExcel_Server::generateCppExcelDataFile(const CSVInfo& info, const string& dataFilePath)
+{
+	// 不含ID的成员字段列表
+	myVector<ColumnData*> memberNoIDList;
+	for (ColumnData* member : info.mHeader.mColumnDataList)
+	{
+		if (member->mName == "ID")
+		{
+			continue;
+		}
+		memberNoIDList.push_back(member);
+	}
+	// 不含ID以及非服务器字段的成员字段列表
+	myVector<ColumnData*> memberUsedInServerNoIDList;
+	for (ColumnData* member : memberNoIDList)
+	{
+		if (member->mOwner != OWNER::SERVER_ONLY && member->mOwner != OWNER::BOTH)
+		{
+			continue;
+		}
+		memberUsedInServerNoIDList.push_back(member);
+	}
+
+	// first是变量名,second是注释,用于通过变量来访问ID
+	myMap<int, pair<string, string>> variableList;
+	myMap<string, int> colNameList;
+	int variableNameIndex = -1;
+	int variableCommentIndex = -1;
+	FOR_VECTOR(info.mHeader.mColumnDataList)
+	{
+		const string& colName = info.mHeader.mColumnDataList[i]->mName;
+		colNameList.insert(colName, i);
+		if (colName == "VariableName")
+		{
+			variableNameIndex = i;
+		}
+		else if (colName == "VariableComment")
+		{
+			variableCommentIndex = i;
+		}
+	}
+
+	if (variableNameIndex >= 0 && variableCommentIndex >= 0)
+	{
+		FOR_VECTOR(info.mDataList)
+		{
+			const auto& rowData = info.mDataList[i];
+			const string& variableName = rowData[variableNameIndex];
+			const string& variableComment = rowData[variableCommentIndex];
+			if (variableName.length() > 0)
+			{
+				variableList.insert(SToI(rowData[0]), make_pair(variableName, variableComment));
+			}
+		}
+	}
+
+	int customParamCount = 0;
+	FOR_I(20)
+	{
+		if (!colNameList.contains("Param" + IToS(i)) ||
+			!colNameList.contains("ParamType" + IToS(i)) ||
+			!colNameList.contains("ParamName" + IToS(i)) ||
+			!colNameList.contains("ParamComment" + IToS(i)))
+		{
+			customParamCount = i;
+			break;
+		}
+	}
+
+	// ExcelData.h
+	string header;
+	string dataClassName = "ED" + info.mHeader.mTableName;
+	line(header, "// auto generate start");
+	line(header, "#pragma once");
+	line(header, "");
+	line(header, "#include \"ExcelData.h\"");
+	line(header, "#include \"GameEnum.h\"");
+	line(header, "");
+	line(header, "// " + info.mHeader.mComment);
+	line(header, "class " + dataClassName + " : public ExcelData");
+	
+	line(header, "{");
+	line(header, "\tBASE(" + dataClassName + ", ExcelData);");
+	if (variableList.size() > 0 || memberUsedInServerNoIDList.size() > 0)
+	{
+		line(header, "public:");
+	}
+	if (variableList.size() > 0)
+	{
+		if (info.mHeader.mColumnDataList.size() > 3)
+		{
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic constexpr int " + item.second.first + "_ID = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+			line(header, "");
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic " + dataClassName + "* " + item.second.first + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+		}
+		else
+		{
+			for (const auto& item : variableList)
+			{
+				string str = "\tstatic constexpr int " + item.second.first + " = " + IToS(item.first) + ";";
+				appendWithAlign(str, "// " + item.second.second, 64);
+				line(header, str);
+			}
+		}
+		line(header, "");
+	}
+	for (const ColumnData* member : memberUsedInServerNoIDList)
+	{
+		const string& type = member->mType;
+		const string& name = member->mName;
+		string memberLine;
+		if (type == "byte" ||
+			type == "char" ||
+			type == "ushort" ||
+			type == "short" ||
+			type == "int" ||
+			type == "uint" ||
+			type == "llong" ||
+			type == "ullong")
+		{
+			memberLine = "\t" + type + " m" + name + " = 0;";
+		}
+		else if (type == "bool")
+		{
+			memberLine = "\t" + type + " m" + name + " = false;";
+		}
+		else if (type == "float")
+		{
+			memberLine = "\t" + type + " m" + name + " = 0.0f;";
+		}
+		else if (!member->mEnumRealType.empty())
+		{
+			if (startWith(type, "Vector<"))
+			{
+				memberLine = "\t" + type + " m" + name + ";";
+			}
+			else
+			{
+				memberLine = "\t" + type + " m" + name + " = (" + type + ")0;";
+			}
+		}
+		else
+		{
+			memberLine = "\t" + type + " m" + name + ";";
+		}
+		appendWithAlign(memberLine, "// " + member->mComment, 64);
+		line(header, memberLine);
+	}
+	line(header, "public:");
+	line(header, "\tvoid cloneTo(ExcelData* target) override;");
+	line(header, "\tvoid read(SerializerRead* reader) override;");
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
+	{
+		line(header, "\tstatic void postLoadAll(ExcelTableBase* tableBase);");
+	}
+	else
+	{
+		line(header, "\tstatic void postLoadAll(ExcelTableBase* tableBase){}");
+	}
+	line(header, "};");
+
+	// 要生成参数的代码,必须要有对应ID的常量名
+	if (customParamCount > 0 && variableNameIndex > 0)
+	{
+		bool hasCustomParam = false;
+		mySet<int> paramIDList;
+		for (const auto& row : info.mDataList)
+		{
+			if (!row[colNameList["Param0"]].empty())
+			{
+				hasCustomParam = true;
+				break;
+			}
+		}
+		if (hasCustomParam)
+		{
+			for (const auto& row : info.mDataList)
+			{
+				if (row[colNameList["Param0"]].empty())
+				{
+					continue;
+				}
+				const string paramClassName = "ED" + info.mHeader.mTableName + "_" + row[variableNameIndex];
+				line(header, "");
+				line(header, "class " + paramClassName);
+				line(header, "{");
+				line(header, "public:");
+				// 变量定义
+				FOR_I(customParamCount)
+				{
+					string indexSuffix = IToS(i);
+					const string& paramValue = row[colNameList["Param" + indexSuffix]];
+					const string& paramType = row[colNameList["ParamType" + indexSuffix]];
+					const string& paramName = row[colNameList["ParamName" + indexSuffix]];
+					const string& paramComment = row[colNameList["ParamComment" + indexSuffix]];
+					if (paramValue.empty())
+					{
+						break;
+					}
+					string lineContent;
+					if (paramType == "Vector<int>")
+					{
+						myVector<int> values;
+						SToIs(paramValue, values);
+						lineContent = "\tstatic constexpr Array<" + IToS(values.size()) + ", int> m" + paramName + " { " + IsToS(values.data(), values.size(), 0, ", ") + " };";
+					}
+					else if (paramType == "Vector<llong>")
+					{
+						myVector<llong> values;
+						SToLLs(paramValue, values);
+						lineContent = "\tstatic constexpr Array<" + IToS(values.size()) + ", llong> m" + paramName + " { " + LLsToS(values.data(), values.size(), 0, ", ") + " };";
+					}
+					else if (paramType == "Vector<float>")
+					{
+						myVector<float> values;
+						SToFs(paramValue, values);
+						string valueStr;
+						FOR_VECTOR(values)
+						{
+							string str = FToS(values[i]);
+							if ((int)str.find_first_of('.') < 0)
+							{
+								str += ".0f";
+							}
+							else
+							{
+								str += "f";
+							}
+							valueStr += str;
+							if (i != values.size())
+							{
+								valueStr += ", ";
+							}
+						}
+						lineContent = "\tstatic constexpr Array<" + IToS(values.size()) + ", float> m" + paramName + " { " + valueStr + " };";
+					}
+					else if (paramType == "int" || paramType == "llong")
+					{
+						lineContent = "\tstatic constexpr " + paramType + " m" + paramName + " = " + paramValue + ";";
+					}
+					else if (paramType == "float")
+					{
+						string str = paramValue;
+						if ((int)str.find_first_of('.') < 0)
+						{
+							str += ".0f";
+						}
+						else
+						{
+							str += "f";
+						}
+						lineContent = "\tstatic constexpr " + paramType + " m" + paramName + " = " + str + ";";
+					}
+					else
+					{
+						ERROR("不支持的参数类型:" + paramType + ", 表格:" + info.mHeader.mTableName + ", id:" + row[0]);
+					}
+					if (!lineContent.empty())
+					{
+						appendWithAlign(lineContent, "// " + paramComment, 64);
+						line(header, lineContent);
+					}
+				}
+				line(header, "};");
+			}
+		}
+	}
+	line(header, "// auto generate end", false);
+	writeFile(dataFilePath + dataClassName + ".h", header);
+
+	// ExcelData.cpp
+	string source;
+	line(source, "// auto generate start");
+	line(source, "#include \"" + dataClassName + ".h\"");
+	line(source, "");
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
+	{
+		for (const auto& item : variableList)
+		{
+			line(source, dataClassName + "* " + dataClassName + "::" + item.second.first + " = nullptr;");
+		}
+		line(source, "");
+	}
+	line(source, "void " + dataClassName + "::cloneTo(ExcelData* target)");
+	line(source, "{");
+	line(source, "\tbase::cloneTo(target);");
+	// 先检查一下有没有需要拷贝的属性
+	if (memberUsedInServerNoIDList.size() > 0)
+	{
+		line(source, "\tauto* targetData = static_cast<This*>(target);");
+		for (const ColumnData* member : memberUsedInServerNoIDList)
+		{
+			const string& name = member->mName;
+			// 如果是列表则调用列表的cloneTo
+			if (startWith(name, "Vector<"))
+			{
+				line(source, "\tm" + name + ".cloneTo(targetData->m" + name + ");");
+			}
+			else
+			{
+				line(source, "\ttargetData->m" + name + " = m" + name + ";");
+			}
+		}
+	}
+	line(source, "}");
+	line(source, "");
+	line(source, "void " + dataClassName + "::read(SerializerRead* reader)");
+	line(source, "{");
+	line(source, "\tbase::read(reader);");
+	for (const ColumnData* member : memberUsedInServerNoIDList)
+	{
+		const string& type = member->mType;
+		const string& name = member->mName;
+		if (type == "string")
+		{
+			line(source, "\treader->readString(m" + name + ");");
+		}
+		else if (type == "Vector2Int")
+		{
+			line(source, "\treader->readVector2Int(m" + name + ");");
+		}
+		else if (type == "Vector2")
+		{
+			line(source, "\treader->readVector2(m" + name + ");");
+		}
+		else if (type == "Vector3")
+		{
+			line(source, "\treader->readVector3(m" + name + ");");
+		}
+		else if (type == "Vector3Int")
+		{
+			line(source, "\treader->readVector3Int(m" + name + ");");
+		}
+		else if (startWith(type, "Vector<"))
+		{
+			const string elementType = type.substr(strlen("Vector<"), type.length() - strlen("Vector<") - 1);
+			if (elementType == "string")
+			{
+				line(source, "\treader->readStringList(m" + name + ");");
+			}
+			else if (elementType == "Vector2")
+			{
+				line(source, "\treader->readVector2List(m" + name + ");");
+			}
+			else if (elementType == "Vector2Int")
+			{
+				line(source, "\treader->readVector2IntList(m" + name + ");");
+			}
+			else if (elementType == "Vector3")
+			{
+				line(source, "\treader->readVector3List(m" + name + ");");
+			}
+			else if (elementType == "Vector3Int")
+			{
+				line(source, "\treader->readVector3IntList(m" + name + ");");
+			}
+			else
+			{
+				line(source, "\treader->readList(m" + name + ");");
+			}
+		}
+		else
+		{
+			line(source, "\treader->read(m" + name + ");");
+		}
+	}
+	line(source, "}");
+
+	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
+	{
+		line(source, "void " + dataClassName + "::postLoadAll(ExcelTableBase* tableBase)");
+		line(source, "{");
+		line(source, "\tauto* table = static_cast<ExcelTable<" + dataClassName + ">*>(tableBase);");
+		for (const auto& item : variableList)
+		{
+			line(source, "\t" + item.second.first + " = " + "table->getData(" + item.second.first + "_ID);");
+		}
+		line(source, "}");
+	}
+	line(source, "// auto generate end", false);
+	writeFile(dataFilePath + dataClassName + ".cpp", source);
+}
+
+// ExcelTable.h和ExcelTable.cpp文件
+void CodeExcel_Server::generateCppExcelTableFile(const CSVInfo& info, const string& tableFilePath)
+{
+	// ExcelTable.h
+	string dataClassName = "ED" + info.mHeader.mTableName;
+	string tableClassName = "Excel" + info.mHeader.mTableName;
+	string tableHeaderFile = tableFilePath + tableClassName + ".h";
+	if (!isFileExist(tableHeaderFile))
+	{
+		string table;
+		line(table, "#pragma once");
+		line(table, "");
+		line(table, "#include \"" + dataClassName + ".h\"");
+		line(table, "#include \"ExcelTable.h\"");
+		line(table, "");
+		line(table, "class " + tableClassName + " : public ExcelTable<" + dataClassName + ">");
+		line(table, "{");
+		line(table, "public:");
+		line(table, "\t// auto generate start");
+		line(table, "\tvoid checkAllDataDefault() override;");
+		line(table, "\t// auto generate end");
+		line(table, "};", false);
+
+		writeFile(tableHeaderFile, table);
+	}
+	else
+	{
+		myVector<string> codeList;
+		int lineStart = -1;
+		if (!findCustomCode(tableHeaderFile, codeList, lineStart,
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate start"); },
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate end"); }, false))
+		{
+			// 如果找不到就在第一个public下一行插入
+			FOR_VECTOR(codeList)
+			{
+				if (endWith(codeList[i], "public:"))
+				{
+					codeList.insert(++i, "\t// auto generate start");
+					lineStart = i;
+					codeList.insert(++i, "\t// auto generate end");
+					break;
+				}
+			}
+		}
+		codeList.insert(++lineStart, "\tvoid checkAllDataDefault() override;");
+		writeFile(tableHeaderFile, codeList);
+	}
+
+	// ExcelTable.cpp
+	myVector<string> insertLines;
+	insertLines.push_back("void " + tableClassName + "::checkAllDataDefault()");
+	insertLines.push_back("{");
+	insertLines.push_back("\tfor (const auto& item : getAllData())");
+	insertLines.push_back("\t{");
+	insertLines.push_back("\t\t" + dataClassName + "* data = item.second;");
+	bool hasCheck = false;
+	myMap<string, myVector<int>> linkLengthMap;
+	for (const ColumnData* member : info.mHeader.mColumnDataList)
+	{
+		if (member->mOwner == OWNER::BOTH || member->mOwner == OWNER::SERVER_ONLY)
+		{
+			const string& linkLength = member->mLinkLength;
+			if (!linkLength.empty())
+			{
+				if (!linkLengthMap.contains(linkLength))
+				{
+					myVector<int> tmep{ member->mIndex };
+					linkLengthMap.insert(linkLength, tmep);
+				}
+				else
+				{
+					linkLengthMap[linkLength].push_back(member->mIndex);
+				}
+			}
+			const string& name = member->mName;
+			const string& linkTable = member->mLinkTable;
+			if (!linkTable.empty())
+			{
+				if (!isFileExist(ExcelPath + linkTable + ".csv") && !isFileExist(ExcelPath + linkTable + ".db"))
+				{
+					ERROR("找不到服务器索引的表格:" + linkTable + ", 当前表格:" + info.mHeader.mTableName + ", 字段名:" + name);
+					continue;
+				}
+				if (member->mEnumRealType.empty())
+				{
+					insertLines.push_back("\t\tmExcel" + linkTable + "->checkData(data->m" + name + ", item.first, this);");
+				}
+				else
+				{
+					insertLines.push_back("\t\tmExcel" + linkTable + "->checkData((int)data->m" + name + ", item.first, this);");
+				}
+				hasCheck = true;
+			}
+			if (!member->mEnumRealType.empty())
+			{
+				insertLines.push_back("\t\tcheckEnumResult(GameEnumCheck::checkEnum(data->m" + name + "), \"m" + name + "\", item.first);");
+				hasCheck = true;
+			}
+		}
+	}
+	FOREACH(iterLink, linkLengthMap)
+	{
+		const auto& colList = iterLink->second;
+		if (colList.size() > 1)
+		{
+			FOR_I(colList.size() - 1)
+			{
+				const string& name0 = info.mHeader.mColumnDataList[colList[i]]->mName;
+				const string& name1 = info.mHeader.mColumnDataList[colList[i + 1]]->mName;
+				insertLines.push_back("\t\tcheckListPair(item.second->m" + name0 + ", item.second->m" + name1 + ", item.first);");
+			}
+		}
+	}
+	insertLines.push_back("\t}");
+	insertLines.push_back("}");
+	// 如果没有任何需要检查的,就只插入一个空函数
+	if (!hasCheck)
+	{
+		insertLines.clear();
+		insertLines.push_back("void " + tableClassName + "::checkAllDataDefault() {}");
+	}
+	string tableSourceFile = tableFilePath + tableClassName + ".cpp";
+	if (!isFileExist(tableSourceFile))
+	{
+		string table;
+		line(table, "#include \"GameHeader.h\"");
+		line(table, "");
+		line(table, "// auto generate start");
+		for (const string& str : insertLines)
+		{
+			line(table, str);
+		}
+		line(table, "// auto generate end", false);
+		writeFile(tableSourceFile, table);
+	}
+	else
+	{
+		myVector<string> codeList;
+		int lineStart = -1;
+		if (!findCustomCode(tableSourceFile, codeList, lineStart,
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate start"); },
+			[](const string& codeLine) { return endWith(codeLine, "// auto generate end"); }, false))
+		{
+			// 如果找不到就在最后一行插入
+			int lineIndex = codeList.size() - 1;
+			codeList.insert(++lineIndex, "");
+			codeList.insert(++lineIndex, "// auto generate start");
+			codeList.insert(++lineIndex, "// auto generate end");
+			lineStart = lineIndex - 1;
+		}
+		for (const string& str : insertLines)
+		{
+			codeList.insert(++lineStart, str);
+		}
+		writeFile(tableSourceFile, codeList);
+	}
+}
+
+// ExcelRegister.h和ExcelRegister.cpp文件
+void CodeExcel_Server::generateCppExcelRegisteFile(const myVector<string>& infoList, const string& filePath)
+{
+	// ExcelRegister.h
+	string str0;
+	line(str0, "// auto generate start");
+	line(str0, "#pragma once");
+	line(str0, "");
+	line(str0, "#include \"GameBase.h\"");
+	line(str0, "");
+	line(str0, "class ExcelRegister");
+	line(str0, "{");
+	line(str0, "public:");
+	line(str0, "\tstatic void registeAll();");
+	line(str0, "};");
+	line(str0, "// auto generate end", false);
+	writeFile(filePath + "ExcelRegister.h", str0);
+
+	string str1;
+	line(str1, "// auto generate start");
+	line(str1, "#include \"GameHeader.h\"");
+	line(str1, "");
+	line(str1, "void ExcelRegister::registeAll()");
+	line(str1, "{");
+	FOR_VECTOR(infoList)
+	{
+		const string& tableName = infoList[i];
+		line(str1, "\tmExcel" + tableName + " = mExcelManager->registeExcel<Excel" + tableName + ">(\"" + tableName + "\");");
+	}
+	line(str1, "}");
+	line(str1, "// auto generate end", false);
+	writeFile(filePath + "ExcelRegister.cpp", str1);
+}
+
+// 生成EDGlobal对应的C++代码
+void CodeExcel_Server::generateCppGlobalConfig(const CSVInfo& globalConfig, const string& dataFilePath)
+{
+	// EDGlobal.h,找到第一个public:,在后面插入配置参数字段
+	string dataClassName = "ED" + globalConfig.mHeader.mTableName;
+	string tableClassName = "Excel" + globalConfig.mHeader.mTableName;
+	string headerFileName = dataFilePath + dataClassName + ".h";
+
+	myVector<string> headerInsertLines;
+	int paramTypeIndex = -1;
+	int paramNameIndex = -1;
+	int paramValueIndex = -1;
+	int paramDescIndex = -1;
+	FOR_VECTOR(globalConfig.mHeader.mColumnDataList)
+	{
+		const string& colName = globalConfig.mHeader.mColumnDataList[i]->mName;
+		if (colName == "ParamType")
+		{
+			paramTypeIndex = i;
+		}
+		else if (colName == "ParamName")
+		{
+			paramNameIndex = i;
+		}
+		else if (colName == "ParamValue")
+		{
+			paramValueIndex = i;
+		}
+		else if (colName == "ParamDesc")
+		{
+			paramDescIndex = i;
+		}
+	}
+	FOR_VECTOR(globalConfig.mDataList)
+	{
+		const auto& row = globalConfig.mDataList[i];
+		const string& paramType = row[paramTypeIndex];
+		const string& paramName = row[paramNameIndex];
+		const string& paramValue = row[paramValueIndex];
+		const string& paramDesc = row[paramDescIndex];
+		if (paramType == "float")
+		{
+			string floatStr = paramValue;
+			if ((int)floatStr.find_first_of('.') < 0)
+			{
+				floatStr += ".0";
+			}
+			string temp = "\tstatic constexpr " + paramType + " " + paramName + " = " + floatStr + "f;";
+			appendWithAlign(temp, "// " + paramDesc, 64);
+			headerInsertLines.push_back(temp);
+		}
+		else if (paramType == "int" || paramType == "llong")
+		{
+			string temp = "\tstatic constexpr " + paramType + " " + paramName + " = " + paramValue + ";";
+			appendWithAlign(temp, "// " + paramDesc, 64);
+			headerInsertLines.push_back(temp);
+		}
+		else
+		{
+			string temp = "\tstatic " + paramType + " " + paramName + ";";
+			appendWithAlign(temp, "// " + paramDesc, 64);
+			headerInsertLines.push_back(temp);
+		}
+	}
+	headerInsertLines.push_back("");
+
+	int headerLineStart = 0;
+	myVector<string> codeListHeader = openFile(headerFileName);
+	FOR_VECTOR(codeListHeader)
+	{
+		if (startWith(codeListHeader[i], "public:"))
+		{
+			headerLineStart = i + 1;
+			break;
+		}
+	}
+	FOR_VECTOR(headerInsertLines)
+	{
+		codeListHeader.insert(headerLineStart++, headerInsertLines[i]);
+	}
+	FOR_VECTOR(codeListHeader)
+	{
+		if (findSubstr(codeListHeader[i], "static void postLoadAll(ExcelTableBase* tableBase)"))
+		{
+			codeListHeader[i] = "\tstatic void postLoadAll(ExcelTableBase* tableBase);";
+			break;
+		}
+	}
+	writeFile(headerFileName, codeListToString(codeListHeader));
+
+	// EDGlobal.cpp
+	string cppFileName = dataFilePath + dataClassName + ".cpp";
+	myVector<string> cppInsertLine;
+	cppInsertLine.push_back("");
+	FOR_VECTOR(globalConfig.mDataList)
+	{
+		const auto& row = globalConfig.mDataList[i];
+		const string& paramType = row[paramTypeIndex];
+		const string& paramName = row[paramNameIndex];
+		const string& paramValue = row[paramValueIndex];
+		const string& paramDesc = row[paramDescIndex];
+		if (paramType != "float" && paramType != "int" && paramType != "llong")
+		{
+			cppInsertLine.push_back(paramType + " " + dataClassName + "::" + paramName + ";");
+		}
+	}
+	cppInsertLine.push_back("");
+	cppInsertLine.push_back("void " + dataClassName + "::postLoadAll(ExcelTableBase* tableBase)");
+	cppInsertLine.push_back("{");
+	cppInsertLine.push_back("\tMap<string, string> paramMap;");
+	cppInsertLine.push_back("\tfor (const auto& item : m" + tableClassName + "->getAllData())");
+	cppInsertLine.push_back("\t{");
+	cppInsertLine.push_back("\t\tremoveAll(item.second->mParamValue, ' ');");
+	cppInsertLine.push_back("\t\tparamMap.add(item.second->mParamName, item.second->mParamValue);");
+	cppInsertLine.push_back("\t}");
+	FOR_VECTOR(globalConfig.mDataList)
+	{
+		const auto& row = globalConfig.mDataList[i];
+		const string& paramType = row[paramTypeIndex];
+		const string& paramName = row[paramNameIndex];
+		const string& paramValue = row[paramValueIndex];
+		const string& paramDesc = row[paramDescIndex];
+		if (paramType == "Vector2Int")
+		{
+			cppInsertLine.push_back("\t" + paramName + " = SToV2I(paramMap[STR(" + paramName + ")]);");
+		}
+		else if (paramType == "Vector2")
+		{
+			cppInsertLine.push_back("\t" + paramName + " = SToV2(paramMap[STR(" + paramName + ")]);");
+		}
+		else if (paramType == "Vector3")
+		{
+			cppInsertLine.push_back("\t" + paramName + " = SToV3(paramMap[STR(" + paramName + ")]);");
+		}
+		else if (paramType == "Vector3Int")
+		{
+			cppInsertLine.push_back("\t" + paramName + " = SToV3I(paramMap[STR(" + paramName + ")]);");
+		}
+		else if (paramType == "Vector<int>")
+		{
+			cppInsertLine.push_back("\tSToIs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+		}
+		else if (paramType == "Vector<float>")
+		{
+			cppInsertLine.push_back("\tSToFs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+		}
+		else if (paramType == "Vector<llong>")
+		{
+			cppInsertLine.push_back("\tSToLLs(paramMap[STR(" + paramName + ")], " + paramName + ");");
+		}
+	}
+	cppInsertLine.push_back("}");
+
+	myVector<string> codeListSource = openFile(cppFileName);
+	int cppLineStart = 0;
+	FOR_VECTOR_INVERSE(codeListSource)
+	{
+		if (startWith(codeListSource[i], "#include"))
+		{
+			cppLineStart = i + 1;
+			break;
+		}
+	}
+	FOR_VECTOR(cppInsertLine)
+	{
+		codeListSource.insert(cppLineStart++, cppInsertLine[i]);
+	}
+
+	writeFile(cppFileName, codeListToString(codeListSource));
+}
+
+// 根据BuffDetail表格生成对应的C++代码,包括类定义和类注册
+void CodeExcel_Server::generateCppBuff(const CSVInfo& config)
+{
+	int variableNameIndex = -1;
+	FOR_VECTOR(config.mHeader.mColumnDataList)
+	{
+		const string& name = config.mHeader.mColumnDataList[i]->mName;
+		if (name == "VariableName")
+		{
+			variableNameIndex = i;
+			break;
+		}
+	}
+
+	myVector<string> buffClassNameList;
+	if (variableNameIndex >= 0)
+	{
+		for (const auto& item : config.mDataList)
+		{
+			buffClassNameList.push_back(item[variableNameIndex]);
+		}
+	}
+	const string registerFilePath = cppGamePath + "Character/Component/StateMachine/StateRegister.cpp";
+	// 更新特定部分代码
+	myVector<string> codeList;
+	int lineStart = -1;
+	if (!findCustomCode(registerFilePath, codeList, lineStart,
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate start"); },
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate end"); }))
+	{
+		return;
+	}
+
+	for (const string& info : buffClassNameList)
+	{
+		codeList.insert(++lineStart, "\tSTATE_FACTORY(" + info + ");");
+	}
+	writeFile(registerFilePath, codeList);
+}
+
+void CodeExcel_Server::generateCppExcelInstanceDeclare(const myVector<string>& infoList, const string& gameBaseHeaderFileName, const string& exprtMacro)
+{
+	// 更新特定部分代码
+	myVector<string> codeList;
+	int lineStart = -1;
+	if (!findCustomCode(gameBaseHeaderFileName, codeList, lineStart,
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate start Excel Extern"); },
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate end Excel Extern"); }))
+	{
+		// 如果找不到,就添加到文件的最后
+		auto tempCodeList = openFile(gameBaseHeaderFileName);
+		FOR_INVERSE_I(tempCodeList.size())
+		{
+			if (tempCodeList[i] == "};" || tempCodeList[i] == "}")
+			{
+				lineStart = i - 1;
+				break;
+			}
+		}
+		if (lineStart >= 0)
+		{
+			codeList.insert(++lineStart, "");
+			codeList.insert(++lineStart, "\t// auto generate start Excel Extern");
+			codeList.insert(lineStart + 1, "\t// auto generate end Excel Extern");
+		}
+	}
+
+	for (const string& info : infoList)
+	{
+		codeList.insert(++lineStart, "\t" + exprtMacro + "extern Excel" + info + "* mExcel" + info + ";");
+	}
+	writeFile(gameBaseHeaderFileName, codeList);
+}
+
+void CodeExcel_Server::generateCppExcelInstanceDefine(const myVector<string>& infoList, const string& gameBaseCppFileName)
+{
+	// 更新GameBase.cpp的特定部分代码
+	myVector<string> codeList;
+	int lineStart = -1;
+	if (!findCustomCode(gameBaseCppFileName, codeList, lineStart,
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate start Excel Define"); },
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate end Excel Define"); }))
+	{
+		// 如果找不到,就添加到文件的最开头
+		auto tempCodeList = openFile(gameBaseCppFileName);
+		FOR_I(tempCodeList.size())
+		{
+			if (tempCodeList[i] == "{")
+			{
+				lineStart = i;
+				break;
+			}
+		}
+		if (lineStart >= 0)
+		{
+			codeList.insert(++lineStart, "\t// auto generate start Excel Define");
+			codeList.insert(lineStart + 1, "\t// auto generate end Excel Define");
+		}
+	}
+	for (const string& info : infoList)
+	{
+		codeList.insert(++lineStart, "\tExcel" + info + "* mExcel" + info + ";");
+	}
+	writeFile(gameBaseCppFileName, codeList);
+}
+
+// GameSTLPoolRegister.cpp
+void CodeExcel_Server::generateCppExcelSTLPoolRegister(const myVector<string>& infoList, const string& gameSTLPoolFile)
+{
+	// 更新GameBase.h的特定部分代码
+	myVector<string> codeList;
+	int lineStart = -1;
+	if (!findCustomCode(gameSTLPoolFile, codeList, lineStart,
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate start Excel数据类型"); },
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate end Excel数据类型"); }))
+	{
+		return;
+	}
+	for (const string& info : infoList)
+	{
+		codeList.insert(++lineStart, "\tmVectorPoolManager->registeVectorPool<ED" + info + "*>();");
+	}
+	writeFile(gameSTLPoolFile, codeList);
+}
+
+void CodeExcel_Server::generateCppExcelInstanceClear(const myVector<string>& infoList, const string& gameBaseCppFileName)
+{
+	// 更新GameBase.cpp的特定部分
+	myVector<string> codeList;
+	int lineStart = -1;
+	if (!findCustomCode(gameBaseCppFileName, codeList, lineStart,
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate start Excel Clear"); },
+		[](const string& codeLine) { return endWith(codeLine, "// auto generate end Excel Clear"); }))
+	{
+		return;
+	}
+
+	for (const string& info : infoList)
+	{
+		codeList.insert(++lineStart, "\t\tmExcel" + info + " = nullptr;");
+	}
+	writeFile(gameBaseCppFileName, codeList);
+}

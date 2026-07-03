@@ -1,4 +1,5 @@
 #include "CodeComponent.h"
+#include "CodeComponent_Server.h"
 
 void CodeComponent::generate()
 {
@@ -29,25 +30,7 @@ void CodeComponent::generate()
 	// 生成StringDefine文件
 	CodeUtility::generateStringDefine(gameComFiles, 20000, "Component", cppGameStringDefineHeaderFile);
 	// ComponentRegister.cpp
-	generateGameComponentRegister(gameComFiles, cppGameRegisterPath);
+	CodeComponent_Server::generateGameComponentRegister(gameComFiles, cppGameRegisterPath);
 	print("完成生成组件代码");
 	print("");
-}
-
-// GameComponentRegister.cpp
-void CodeComponent::generateGameComponentRegister(const myVector<string>& componentList, const string& filePath)
-{
-	string source;
-	line(source, "// auto generate start");
-	line(source, "#include \"GameHeader.h\"");
-	line(source, "");
-	line(source, "void GameComponentRegister::registeAll()");
-	line(source, "{");
-	FOR_VECTOR(componentList)
-	{
-		line(source, "\tmGameComponentFactoryManager->addFactory<" + componentList[i] + ">();");
-	}
-	line(source, "}");
-	line(source, "// auto generate end", false);
-	writeFile(filePath + "GameComponentRegister.cpp", source);
 }

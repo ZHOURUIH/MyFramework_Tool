@@ -156,6 +156,51 @@
     <ClCompile Include="Game\CodeCondition.cpp">
       <Filter>Game</Filter>
     </ClCompile>
+    <ClCompile Include="Game\CodeBaseCheck_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeClassDeclareAndHeader_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeComponent_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeCondition_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeEnumCheck_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeExcel_Client.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeExcel_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeFrameSystem_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeMySQL_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeNetPacket_Client.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeNetPacket_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeSQLite_Client.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeSQLite_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeUnityBuild_Server.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+    <ClCompile Include="Game\CodeCondition_Client.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Frame\Common\StreamBuffer.h">
@@ -333,6 +378,51 @@
       <Filter>Game</Filter>
     </ClInclude>
     <ClInclude Include="Game\CodeCondition.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeBaseCheck_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeClassDeclareAndHeader_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeComponent_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeCondition_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeEnumCheck_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeExcel_Client.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeExcel_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeFrameSystem_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeMySQL_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeNetPacket_Client.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeNetPacket_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeSQLite_Client.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeSQLite_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeUnityBuild_Server.h">
+      <Filter>Game</Filter>
+    </ClInclude>
+    <ClInclude Include="Game\CodeCondition_Client.h">
       <Filter>Game</Filter>
     </ClInclude>
   </ItemGroup>
