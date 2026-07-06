@@ -494,9 +494,9 @@ bool sqliteToBinary(const string& file, const SQLiteInfo& sqliteTableInfo, const
 	return true;
 }
 
-string dataBasePath = "none";
-string clientDestSQLitePath = "none";
-string serverDestPath = "none";
+string dataBasePath;
+string clientDestSQLitePath;
+string serverDestPath;
 bool parseConfig(const string& path)
 { 
 	Vector<string> lines;
@@ -529,21 +529,6 @@ bool parseConfig(const string& path)
 			serverDestPath = paramValue;
 		}
 	}
-	if (dataBasePath == "none")
-	{
-		ERROR("参数解析错误,找不到DataBasePath");
-		return 0;
-	}
-	if (clientDestSQLitePath == "none")
-	{
-		ERROR("参数解析错误,找不到ClientDestSQLitePath");
-		return 0;
-	}
-	if (serverDestPath == "none")
-	{
-		ERROR("参数解析错误,找不到ServerDestPath");
-		return 0;
-	}
 	return true;
 }
 
@@ -575,7 +560,7 @@ int main()
 		// 转换给客户端,这种情况下客户端只会使用表格原始文件,只需要拷贝并加密即可
 		if (sqliteTableInfo.mOwner == SQLITE_OWNER::CLIENT_ONLY || sqliteTableInfo.mOwner == SQLITE_OWNER::BOTH)
 		{
-			if (clientDestSQLitePath != "none" && !clientDestSQLitePath.empty())
+			if (!clientDestSQLitePath.empty())
 			{
 				copySQLiteToClient(file, clientDestSQLitePath);
 			}
@@ -583,7 +568,7 @@ int main()
 		// 转换给服务器
 		if (sqliteTableInfo.mOwner == SQLITE_OWNER::SERVER_ONLY || sqliteTableInfo.mOwner == SQLITE_OWNER::BOTH)
 		{
-			if (serverDestPath != "none" && !serverDestPath.empty())
+			if (!serverDestPath.empty())
 			{
 				sqliteToBinary(file, sqliteTableInfo, serverDestPath, false);
 			}
