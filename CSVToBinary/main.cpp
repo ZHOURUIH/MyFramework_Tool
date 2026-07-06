@@ -467,9 +467,9 @@ void csvToBinary(const string& destPath, const CSVHeader& header, const Vector<V
 	cout << "生成文件:" << destPath << endl;
 }
 
-string csvPath = "none";
-string clientDestPath = "none";
-string serverDestPath = "none";
+string csvPath;
+string clientDestPath;
+string serverDestPath;
 bool parseConfig(const string& filePath)
 {
 	Vector<string> lines;
@@ -502,21 +502,6 @@ bool parseConfig(const string& filePath)
 			serverDestPath = paramValue;
 		}
 	}
-	if (csvPath == "none")
-	{
-		ERROR("参数解析错误,找不到CSVPath");
-		return false;
-	}
-	if (clientDestPath == "none")
-	{
-		ERROR("参数解析错误,找不到ClientDestPath");
-		return false;
-	}
-	if (serverDestPath == "none")
-	{
-		ERROR("参数解析错误,找不到ServerDestPath");
-		return false;
-	}
 	return true;
 }
 
@@ -536,7 +521,7 @@ int main()
 			FileUtility::deleteFile(file);
 		}
 	}
-	if (clientDestPath != "none" && !clientDestPath.empty())
+	if (!clientDestPath.empty())
 	{
 		FileUtility::findFiles(clientDestPath, tempBytesFiles, ".bytes");
 		for (const string& file : tempBytesFiles)
@@ -558,14 +543,14 @@ int main()
 		const string fileName = StringUtility::getFileNameNoSuffix(file, true);
 		if (header.mOwner == OWNER::BOTH || header.mOwner == OWNER::CLIENT_ONLY)
 		{
-			if (clientDestPath != "none" && !clientDestPath.empty())
+			if (!clientDestPath.empty())
 			{
 				csvToBinary(clientDestPath + "/" + fileName + ".bytes", header, dataList, true);
 			}
 		}
 		if (header.mOwner == OWNER::BOTH || header.mOwner == OWNER::SERVER_ONLY)
 		{
-			if (serverDestPath != "none" && !serverDestPath.empty())
+			if (!serverDestPath.empty())
 			{
 				csvToBinary(serverDestPath + "/" + fileName + ".bytes", header, dataList, false);
 			}
