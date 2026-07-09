@@ -114,11 +114,13 @@ void CodeExcel_Client::generateCSharpExcelDataFile(const CSVInfo& info, const st
 	line(file, "using UnityEngine;");
 	line(file, "");
 	line(file, "// " + info.mHeader.mComment);
-	line(file, "public class " + dataClassName + " : ExcelData");
+	line(file, "public class " + dataClassName + " : ExcelDataT<" + dataClassName + ">");
 	line(file, "{");
-	// 表示ID的静态变量,如果只有3列,也就是除了ID,变量名和注释以外就没了,那生成对象也没意义,只需要生成ID就行了
+	// 表示ID的静态变量
 	if (variableList.size() > 0)
 	{
+		// 如果只有3列, 也就是除了ID, 变量名和注释以外就没了, 那生成对象也没意义, 只需要生成ID就行了
+		// 大于3列就需要生成对象
 		if (info.mHeader.mColumnDataList.size() > 3)
 		{
 			for (const auto& item : variableList)
@@ -130,7 +132,15 @@ void CodeExcel_Client::generateCSharpExcelDataFile(const CSVInfo& info, const st
 			line(file, "");
 			for (const auto& item : variableList)
 			{
-				string str = "\tpublic static " + dataClassName + " " + item.second.first + ";";
+				string str = "\tpublic static " + dataClassName + " _" + item.second.first + ";";
+				appendWithAlign(str, "// " + item.second.second, 52);
+				line(file, str);
+			}
+			line(file, "");
+			for (const auto& item : variableList)
+			{
+				string str = "\tpublic static " + dataClassName + " " + item.second.first + 
+					" { get { return _" + item.second.first + " ??= mTable.query(" + item.second.first + "_ID); } }";
 				appendWithAlign(str, "// " + item.second.second, 52);
 				line(file, str);
 			}
@@ -235,21 +245,6 @@ void CodeExcel_Client::generateCSharpExcelDataFile(const CSVInfo& info, const st
 		line(file, "\t\treturn result;");
 	}
 	line(file, "\t}");
-
-	if (variableList.size() > 0 && info.mHeader.mColumnDataList.size() > 3)
-	{
-		line(file, "\tpublic static void postLoadAll(ExcelTableT<ED" + info.mHeader.mTableName + "> table)");
-		line(file, "\t{");
-		for (const auto& item : variableList)
-		{
-			line(file, "\t\t" + item.second.first + " = table.query(" + item.second.first + "_ID);");
-		}
-		line(file, "\t}");
-	}
-	else
-	{
-		line(file, "\tpublic static void postLoadAll(ExcelTableT<ED" + info.mHeader.mTableName + "> table){}");
-	}
 
 	line(file, "}");
 
@@ -505,11 +500,6 @@ void CodeExcel_Client::generateCSharpExcelTableFile(const CSVInfo& info, const s
 		insertLines.push_back("\tprotected override void checkAllDataDefault() {}");
 	}
 
-	insertLines.push_back("\tprotected override void postParseFile()");
-	insertLines.push_back("\t{");
-	insertLines.push_back("\t\t" + dataClassName + ".postLoadAll(this);");
-	insertLines.push_back("\t}");
-
 	// ExcelTable.cs文件
 	string csFileName = tableFilePath + tableClassName + ".cs";
 	if (!isFileExist(csFileName))
@@ -654,6 +644,7 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 	string tableClassName = "Excel" + globalConfig.mHeader.mTableName;
 	string dataFileName = dataFilePath + dataClassName + ".cs";
 	myVector<string> insertLines0;
+	insertLines0.push_back("\tprivate static bool mGlobalLoaded;");
 	int paramTypeIndex = -1;
 	int paramNameIndex = -1;
 	int paramValueIndex = -1;
@@ -678,6 +669,23 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 			paramDescIndex = i;
 		}
 	}
+	// 静态变量的对象
+	FOR_VECTOR(globalConfig.mDataList)
+	{
+		const auto& row = globalConfig.mDataList[i];
+		const string& paramType = row[paramTypeIndex];
+		const string& paramName = row[paramNameIndex];
+		const string& paramDesc = row[paramDescIndex];
+		if (paramType != "float" && paramType != "int" && paramType != "llong")
+		{
+			string temp = "\tprivate static " + cppTypeToCSharpType(paramType) + " _" + paramName + ";";
+			appendWithAlign(temp, "// " + paramDesc, 52);
+			insertLines0.push_back(temp);
+		}
+	}
+	insertLines0.push_back("");
+
+	// 常量
 	FOR_VECTOR(globalConfig.mDataList)
 	{
 		const auto& row = globalConfig.mDataList[i];
@@ -708,9 +716,19 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 			appendWithAlign(temp, "// " + paramDesc, 52);
 			insertLines0.push_back(temp);
 		}
-		else
+	}
+	insertLines0.push_back("");
+
+	// 静态变量的访问字段
+	FOR_VECTOR(globalConfig.mDataList)
+	{
+		const auto& row = globalConfig.mDataList[i];
+		const string& paramType = row[paramTypeIndex];
+		const string& paramName = row[paramNameIndex];
+		const string& paramDesc = row[paramDescIndex];
+		if (paramType != "float" && paramType != "int" && paramType != "llong")
 		{
-			string temp = "\tpublic static " + cppTypeToCSharpType(paramType) + " " + paramName + ";";
+			string temp = "\tpublic static " + cppTypeToCSharpType(paramType) + " " + paramName + "{ get { loadAllParam(); return _" + paramName + "; } }";
 			appendWithAlign(temp, "// " + paramDesc, 52);
 			insertLines0.push_back(temp);
 		}
@@ -718,10 +736,15 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 	insertLines0.push_back("");
 
 	myVector<string> insertLines1;
-	insertLines1.push_back("\tpublic static void postLoadAll(ExcelTableT<EDGlobal> table)");
+	insertLines1.push_back("\tpublic static void loadAllParam()");
 	insertLines1.push_back("\t{");
+	insertLines1.push_back("\t\tif (mGlobalLoaded)");
+	insertLines1.push_back("\t\t{");
+	insertLines1.push_back("\t\t\treturn;");
+	insertLines1.push_back("\t\t}");
+	insertLines1.push_back("\t\tmGlobalLoaded = true;");
 	insertLines1.push_back("\t\tusing var a = new DicScope<string, string>(out var paramMap);");
-	insertLines1.push_back("\t\tforeach (EDGlobal data in table.queryAll())");
+	insertLines1.push_back("\t\tforeach (EDGlobal data in mTable.queryAll())");
 	insertLines1.push_back("\t\t{");
 	insertLines1.push_back("\t\t\tparamMap.add(data.mParamName, data.mParamValue.removeAllEmpty());");
 	insertLines1.push_back("\t\t}");
@@ -734,31 +757,31 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 		const string& paramDesc = row[paramDescIndex];
 		if (paramType == "Vector2Int")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToV2I();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToV2I();");
 		}
 		else if (paramType == "Vector2")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToV2();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToV2();");
 		}
 		else if (paramType == "Vector3")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToV3();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToV3();");
 		}
 		else if (paramType == "Vector3Int")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToV3I();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToV3I();");
 		}
 		else if (paramType == "Vector<int>")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToIs();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToIs();");
 		}
 		else if (paramType == "Vector<float>")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToFs();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToFs();");
 		}
 		else if (paramType == "Vector<llong>")
 		{
-			insertLines1.push_back("\t\t" + paramName + " = paramMap[\"" + paramName + "\"].SToLs();");
+			insertLines1.push_back("\t\t_" + paramName + " = paramMap[\"" + paramName + "\"].SToLs();");
 		}
 	}
 	insertLines1.push_back("\t}");
@@ -777,12 +800,12 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 	{
 		codeList.insert(lineStart0++, insertLines0[i]);
 	}
+	// 将loadAllParam插入到类的最后
 	int lineStart1 = 0;
-	FOR_VECTOR(codeList)
+	FOR_VECTOR_INVERSE(codeList)
 	{
-		if (findSubstr(codeList[i], "public static void postLoadAll("))
+		if (codeList[i] == "}")
 		{
-			codeList.eraseAt(i);
 			lineStart1 = i;
 			break;
 		}
@@ -790,14 +813,6 @@ void CodeExcel_Client::generateCSharpGlobalConfig(const CSVInfo& globalConfig, c
 	FOR_VECTOR(insertLines1)
 	{
 		codeList.insert(lineStart1++, insertLines1[i]);
-	}
-	FOR_VECTOR_INVERSE(codeList)
-	{
-		if (startWith(codeList[i], "using "))
-		{
-			codeList.insert(++i, "using static StringUtility;");
-			break;
-		}
 	}
 
 	writeFile(dataFileName, codeListToString(codeList));
