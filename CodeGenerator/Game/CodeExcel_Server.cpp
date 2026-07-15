@@ -755,8 +755,9 @@ void CodeExcel_Server::generateCppGlobalConfig(const CSVInfo& globalConfig, cons
 	cppInsertLine.push_back("");
 	cppInsertLine.push_back("void " + dataClassName + "::postLoadAll(ExcelTableBase* tableBase)");
 	cppInsertLine.push_back("{");
+	cppInsertLine.push_back("\tauto* table = static_cast<ExcelTable<This>*>(tableBase);");
 	cppInsertLine.push_back("\tMap<string, string> paramMap;");
-	cppInsertLine.push_back("\tfor (const auto& item : m" + tableClassName + "->getAllData())");
+	cppInsertLine.push_back("\tfor (const auto& item : table->getAllData())");
 	cppInsertLine.push_back("\t{");
 	cppInsertLine.push_back("\t\tremoveAll(item.second->mParamValue, ' ');");
 	cppInsertLine.push_back("\t\tparamMap.add(item.second->mParamName, item.second->mParamValue);");
