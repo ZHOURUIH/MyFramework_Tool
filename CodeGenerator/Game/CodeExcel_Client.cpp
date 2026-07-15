@@ -125,7 +125,7 @@ void CodeExcel_Client::generateCSharpExcelDataFile(const CSVInfo& info, const st
 		{
 			for (const auto& item : variableList)
 			{
-				string str = "\tpublic static int " + item.second.first + "_ID = " + IToS(item.first) + ";";
+				string str = "\tpublic const int " + item.second.first + "_ID = " + IToS(item.first) + ";";
 				appendWithAlign(str, "// " + item.second.second, 52);
 				line(file, str);
 			}
